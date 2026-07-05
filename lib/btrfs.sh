@@ -12,13 +12,13 @@ validate_device_is_btrfs() {
   local dev="$1"
   log_info "Validating $dev is a BTRFS filesystem..."
 
-  if ! command -v blkid &>/dev/null; then
+  if ! command -v blkid; then
     log_warn "blkid not available — skipping BTRFS validation"
     return 0
   fi
 
   local fstype
-  fstype=$(blkid -s TYPE -o value "$dev" 2>/dev/null || true)
+  fstype=$(blkid -s TYPE -o value "$dev")
 
   if [[ "$fstype" != "btrfs" ]]; then
     log_err "Device $dev is type '$fstype', not BTRFS."
@@ -59,7 +59,9 @@ wipe_subvol_reset() {
     log_warn "Renaming @ to @.bak-$ts for safety..."
     local old_backups=("$mnt_tmp/@.bak-"*)
     if [[ -e "${old_backups[0]}" ]]; then
-      run btrfs subvolume delete "$mnt_tmp/@.bak-"* || log_warn "Failed to delete old @.bak subvolumes"
+      if ! run btrfs subvolume delete "$mnt_tmp/@.bak-"*; then
+        log_warn "Failed to delete old @.bak subvolumes"
+      fi
     fi
     run mv "$mnt_tmp/@" "$mnt_tmp/@.bak-$ts"
   else

@@ -25,8 +25,11 @@ mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/deploy.log"
 
 # Rotate if > 5MB
-if [[ -f "$LOG_FILE" && $(stat -c%s "$LOG_FILE" 2>/dev/null || echo 0) -gt 5242880 ]]; then
-  mv "$LOG_FILE" "$LOG_FILE.old"
+if [[ -f "$LOG_FILE" ]]; then
+  log_size=$(stat -c%s "$LOG_FILE")
+  if [[ "$log_size" -gt 5242880 ]]; then
+    mv "$LOG_FILE" "$LOG_FILE.old"
+  fi
 fi
 
 log()       { echo -e "${C_CYAN}[arch-deploy]${C_RESET} $*" | tee -a "$LOG_FILE" >&2; }

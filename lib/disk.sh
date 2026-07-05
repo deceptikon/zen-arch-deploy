@@ -62,7 +62,9 @@ mount_subvols() {
   # Mount EFI
   local efi_dev
   efi_dev=$(profile_get_or_die "storage.partitions.efi.device")
-  local efi_target="$mnt/efi"
+  local efi_mpoint
+  efi_mpoint=$(profile_get_or_die "storage.partitions.efi.mount")
+  local efi_target="$mnt$efi_mpoint"
   run mkdir -p "$efi_target"
   run mount -o rw,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=ascii,shortname=mixed,utf8,errors=remount-ro "$efi_dev" "$efi_target"
 }

@@ -111,14 +111,14 @@ fi
 # ---------------------------------------------------------------------------
 # 6. Timeshift baseline snapshot
 # ---------------------------------------------------------------------------
-if command -v timeshift &>/dev/null; then
+if command -v timeshift; then
   log_info "Creating baseline snapshot..."
-  if command -v timeshift &>/dev/null; then
-    run timeshift --create --comments "baseline-verify-$(date +%Y%m%d)" || log_warn "timeshift snapshot creation failed"
-  else
-    log_warn "timeshift not installed — skipping baseline snapshot"
+  if ! run timeshift --create --comments "baseline-verify-$(date +%Y%m%d)"; then
+    log_warn "timeshift snapshot creation failed"
   fi
   log_ok "Baseline snapshot created."
+else
+  log_warn "timeshift not installed — skipping baseline snapshot"
 fi
 
 # ---------------------------------------------------------------------------

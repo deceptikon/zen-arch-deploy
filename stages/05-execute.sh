@@ -58,6 +58,12 @@ HOSTNAME=$(profile_get_or_die "machine.hostname")
 KERNEL_PKG=$(profile_get_or_die "kernel.pkg")
 
 # ---------------------------------------------------------------------------
+# Determine wipe strategy
+# ---------------------------------------------------------------------------
+WIPE_STRATEGY=$(profile_get_or_die "storage.wipe_strategy")
+log_info "Wipe strategy: $WIPE_STRATEGY"
+
+# ---------------------------------------------------------------------------
 # Dry-run preview
 # ---------------------------------------------------------------------------
 if [[ "$DRY_RUN" == "true" ]]; then
@@ -68,20 +74,34 @@ if [[ "$DRY_RUN" == "true" ]]; then
   echo "Root pool:  $ROOT_DEV"
   echo "Hostname:   $HOSTNAME"
   echo "Kernel:     $KERNEL_PKG"
+  echo "Strategy:   $WIPE_STRATEGY"
   echo ""
-  echo "Steps that would execute:"
-  echo "  1. mount $ROOT_DEV -> /mnt (top-level)"
-  echo "  2. btrfs subvolume delete @ (or rename to @.bak-*)"
-  echo "  3. btrfs subvolume create @"
-  echo "  4. mount @ -> /mnt"
-  echo "  5. mount @home -> /mnt/home"
-  echo "  6. mount @swap -> /mnt/.swap"
-  echo "  7. mount $EFI_DEV -> /mnt/efi"
-  echo "  8. pacstrap base system"
-  echo "  9. generate fstab"
-  echo " 10. arch-chroot: timezone, locale, hostname"
-  echo " 11. mkinitcpio"
-  echo " 12. grub-install + grub-mkconfig"
+  if [[ "$WIPE_STRATEGY" == "format-full" ]]; then
+    echo "Steps that would execute:"
+    echo "  1. mkfs.vfat $EFI_DEV"
+    echo "  2. mkfs.btrfs $ROOT_DEV"
+    echo "  3. create subvolumes (@, @home, @swap, @snapshots)"
+    echo "  4. mount subvolumes -> /mnt"
+    echo "  5. pacstrap base system"
+    echo "  6. generate fstab"
+    echo "  7. arch-chroot: timezone, locale, hostname"
+    echo "  8. mkinitcpio"
+    echo "  9. grub-install + grub-mkconfig"
+  else
+    echo "Steps that would execute:"
+    echo "  1. mount $ROOT_DEV -> /mnt (top-level)"
+    echo "  2. btrfs subvolume delete @ (or rename to @.bak-*)"
+    echo "  3. btrfs subvolume create @"
+    echo "  4. mount @ -> /mnt"
+    echo "  5. mount @home -> /mnt/home"
+    echo "  6. mount @swap -> /mnt/.swap"
+    echo "  7. mount $EFI_DEV -> /mnt/efi"
+    echo "  8. pacstrap base system"
+    echo "  9. generate fstab"
+    echo " 10. arch-chroot: timezone, locale, hostname"
+    echo " 11. mkinitcpio"
+    echo " 12. grub-install + grub-mkconfig"
+  fi
   echo ""
   log_ok "Dry-run preview complete."
   exit 0
@@ -90,13 +110,39 @@ fi
 # ---------------------------------------------------------------------------
 # Confirm destructive operation
 # ---------------------------------------------------------------------------
-confirm_critical "This will RESET the @ subvolume on $ROOT_DEV and install Arch. Are you sure?"
+if [[ "$WIPE_STRATEGY" == "format-full" ]]; then
+  confirm_critical "This will FORMAT $ROOT_DEV as BTRFS and $EFI_DEV as FAT32, then install Arch. Are you sure?"
+else
+  confirm_critical "This will RESET the @ subvolume on $ROOT_DEV and install Arch. Are you sure?"
+fi
 
 # ---------------------------------------------------------------------------
-# 1. Wipe @ subvolume (subvol-reset)
+# 1. Wipe / format per strategy
 # ---------------------------------------------------------------------------
-log_info "Performing subvolume reset on $ROOT_DEV..."
-wipe_subvol_reset "$ROOT_DEV" true
+if [[ "$WIPE_STRATEGY" == "format-full" ]]; then
+  log_info "Performing full format (new BTRFS pool + subvolumes)..."
+
+  # Format EFI partition
+  log_info "Formatting EFI partition $EFI_DEV..."
+  run mkfs.vfat -F32 -n "EFI" "$EFI_DEV"
+  log_ok "EFI partition formatted."
+
+  # Format root pool as BTRFS
+  log_info "Formatting root pool $ROOT_DEV as BTRFS..."
+  run mkfs.btrfs -f -L "ArchPool" "$ROOT_DEV"
+  log_ok "Root pool formatted as BTRFS."
+
+  # Create subvolumes
+  log_info "Creating subvolumes..."
+  create_subvols "$ROOT_DEV"
+  log_ok "Subvolumes created."
+
+elif [[ "$WIPE_STRATEGY" == "subvol-reset" ]]; then
+  log_info "Performing subvolume reset on $ROOT_DEV..."
+  wipe_subvol_reset "$ROOT_DEV" true
+else
+  die "Unknown wipe strategy: $WIPE_STRATEGY (expected 'format-full' or 'subvol-reset')"
+fi
 
 # ---------------------------------------------------------------------------
 # 2. Mount fresh subvolumes

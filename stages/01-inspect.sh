@@ -56,48 +56,62 @@ fi
   if [[ -r /sys/class/dmi/id/product_name ]]; then
     cat /sys/class/dmi/id/product_name
   else
-    log_warn "Cannot read DMI product_name"
+    echo "MISSING: DMI product_name not readable"
   fi
   if [[ -r /sys/class/dmi/id/product_version ]]; then
     cat /sys/class/dmi/id/product_version
   else
-    log_warn "Cannot read DMI product_version"
+    echo "MISSING: DMI product_version not readable"
   fi
   echo "=== CPU ==="
-  if command -v lscpu &>/dev/null; then
-    lscpu 2>/dev/null | grep -E "Vendor ID|Model name|Thread|Core" || echo "N/A"
+  if command -v lscpu; then
+    lscpu | grep -E "Vendor ID|Model name|Thread|Core"
   else
-    echo "N/A — lscpu not available"
+    echo "MISSING: lscpu"
   fi
   echo "=== RAM ==="
-  free -h 2>/dev/null || echo "N/A"
-  echo "=== DISKS ==="
-  # Use safe lsblk columns; FSVER may not exist on all versions
-  if lsblk -f -o NAME,SIZE,FSTYPE,FSVER,MOUNTPOINT,PARTUUID,UUID &>/dev/null; then
-    lsblk -f -o NAME,SIZE,FSTYPE,FSVER,MOUNTPOINT,PARTUUID,UUID
-  elif lsblk -f -o NAME,SIZE,FSTYPE,MOUNTPOINT,PARTUUID,UUID &>/dev/null; then
-    lsblk -f -o NAME,SIZE,FSTYPE,MOUNTPOINT,PARTUUID,UUID
+  if command -v free; then
+    free -h
   else
-    lsblk -f || echo "N/A — lsblk failed"
+    echo "MISSING: free"
+  fi
+  echo "=== DISKS ==="
+  # Primary: blkid reads superblocks directly (works even when kernel hasn't probed)
+  if command -v blkid; then
+    blkid -o export
+  else
+    echo "MISSING: blkid"
+  fi
+  echo "---"
+  echo "=== DISK TOPOLOGY ==="
+  # Secondary: lsblk for partition tree (topology only; fs info from blkid)
+  if command -v lsblk; then
+    lsblk --pairs
+  else
+    echo "MISSING: lsblk"
   fi
   echo "=== PCI ==="
-  if command -v lspci &>/dev/null; then
-    lspci -nnk 2>/dev/null | grep -A2 -E "VGA|Audio|Network|Ethernet|Wireless" || echo "N/A"
+  if command -v lspci; then
+    lspci -nnk | grep -A2 -E "VGA|Audio|Network|Ethernet|Wireless"
   else
-    echo "N/A — lspci not available"
+    echo "MISSING: lspci"
   fi
   echo "=== USB ==="
-  if command -v lsusb &>/dev/null; then
-    lsusb 2>/dev/null || echo "N/A"
+  if command -v lsusb; then
+    lsusb
   else
-    echo "N/A — lsusb not available"
+    echo "MISSING: lsusb"
   fi
   echo "=== FIRMWARE ==="
-  [ -d /sys/firmware/efi ] && echo "UEFI mode" || echo "Legacy BIOS"
-  if command -v efibootmgr &>/dev/null; then
+  if [[ -d /sys/firmware/efi ]]; then
+    echo "UEFI mode"
+  else
+    echo "Legacy BIOS"
+  fi
+  if command -v efibootmgr; then
     efibootmgr -v
   else
-    log_warn "efibootmgr not found"
+    echo "MISSING: efibootmgr"
   fi
 } > "$OUTPUT_DIR/hardware.txt"
 log_ok "hardware.txt written"
@@ -116,20 +130,21 @@ btrfs_discover() {
   log_info "Discovering BTRFS filesystems..."
 
   # Fast path: root filesystem is btrfs
-  if command -v findmnt &>/dev/null && findmnt -o FSTYPE -n / 2>/dev/null | grep -q '^btrfs$'; then
-    log_ok "Root filesystem is BTRFS"
-    BTRFS_DEVICES+=("$(findmnt -o SOURCE -n /)")
-    BTRFS_MOUNTS+=("/")
-    return 0
+  if command -v findmnt; then
+    if findmnt -o FSTYPE -n / | grep -q '^btrfs$'; then
+      log_ok "Root filesystem is BTRFS"
+      BTRFS_DEVICES+=("$(findmnt -o SOURCE -n /)")
+      BTRFS_MOUNTS+=("/")
+      return 0
+    fi
   fi
 
-  # Scan all block devices for btrfs filesystems
-  if command -v blkid &>/dev/null; then
+  # Scan all block devices for btrfs filesystems via blkid
+  if command -v blkid; then
     while read -r dev; do
       [[ -n "$dev" ]] || continue
-      # Skip if already in list
       local skip=false
-      for d in "${BTRFS_DEVICES[@]}"; do
+      for d in "${BTRFS_DEVICES[@]+"${BTRFS_DEVICES[@]}"}"; do
         [[ "$d" == "$dev" ]] && skip=true && break
       done
       if [[ "$skip" == false ]]; then
@@ -137,15 +152,15 @@ btrfs_discover() {
         BTRFS_DEVICES+=("$dev")
         BTRFS_MOUNTS+=("")
       fi
-    done < <(blkid -t TYPE=btrfs -o device 2>/dev/null)
+    done < <(blkid -t TYPE=btrfs -o device)
   fi
 
   # Also check btrfs filesystem show as a secondary scan
-  if command -v btrfs &>/dev/null; then
+  if command -v btrfs; then
     while read -r dev; do
       [[ -n "$dev" ]] || continue
       local skip=false
-      for d in "${BTRFS_DEVICES[@]}"; do
+      for d in "${BTRFS_DEVICES[@]+"${BTRFS_DEVICES[@]}"}"; do
         [[ "$d" == "$dev" ]] && skip=true && break
       done
       if [[ "$skip" == false ]]; then
@@ -153,7 +168,7 @@ btrfs_discover() {
         BTRFS_DEVICES+=("$dev")
         BTRFS_MOUNTS+=("")
       fi
-    done < <(btrfs filesystem show -d 2>/dev/null | awk '/dev/ {print $NF}')
+    done < <(btrfs filesystem show -d | awk '/dev/ {print $NF}')
   fi
 
   if [[ ${#BTRFS_DEVICES[@]} -eq 0 ]]; then
@@ -171,8 +186,8 @@ btrfs_inspect_device() {
   local mnt=""
 
   # Check if already mounted somewhere
-  if command -v findmnt &>/dev/null; then
-    mnt=$(findmnt -o TARGET -n "$dev" 2>/dev/null | head -n1)
+  if command -v findmnt; then
+    mnt=$(findmnt -o TARGET -n "$dev" | head -n1)
   fi
 
   if [[ -n "$mnt" ]]; then
@@ -182,9 +197,9 @@ btrfs_inspect_device() {
     # Temporarily mount to inspect
     mnt=$(mktemp -d)
     log_info "Temporarily mounting $dev at $mnt for inspection..."
-    if ! mount -t btrfs "$dev" "$mnt" &>/dev/null; then
+    if ! mount -t btrfs "$dev" "$mnt"; then
       log_warn "Failed to mount $dev — skipping BTRFS inspection for this device"
-      rmdir "$mnt" 2>/dev/null || true
+      rmdir "$mnt"
       return 1
     fi
     was_mounted=false
@@ -195,35 +210,55 @@ btrfs_inspect_device() {
   echo "Mountpoint: $mnt"
   echo "---"
   echo "=== SUBVOLUMES ==="
-  if command -v btrfs &>/dev/null; then
-    btrfs subvolume list "$mnt" 2>/dev/null || log_warn "Could not list subvolumes on $dev"
+  if command -v btrfs; then
+    if ! btrfs subvolume list "$mnt"; then
+      log_warn "Could not list subvolumes on $dev"
+    fi
   else
     log_warn "btrfs tool not available"
   fi
   echo "---"
   echo "=== DF ==="
-  btrfs filesystem df "$mnt" 2>/dev/null || log_warn "Could not get df for $dev"
+  if ! btrfs filesystem df "$mnt"; then
+    log_warn "Could not get df for $dev"
+  fi
   echo "---"
   echo "=== USAGE ==="
-  btrfs filesystem usage "$mnt" 2>/dev/null || log_warn "Could not get usage for $dev"
+  if ! btrfs filesystem usage "$mnt"; then
+    log_warn "Could not get usage for $dev"
+  fi
   echo "---"
   echo "=== UUID ==="
-  blkid -s UUID -o value "$dev" 2>/dev/null || log_warn "Could not get UUID for $dev"
+  if ! blkid -s UUID -o value "$dev"; then
+    log_warn "Could not get UUID for $dev"
+  fi
 
   # Unmount if we mounted it
   if [[ "$was_mounted" == false ]]; then
-    umount "$mnt" || log_warn "Failed to unmount $mnt"
-    rmdir "$mnt" || true
+    if ! umount "$mnt"; then
+      log_warn "Failed to unmount $mnt"
+    fi
+    rmdir "$mnt"
   fi
 }
 
 {
   echo "=== BLOCK DEVICES ==="
-  # Use --noheadings --raw to get clean pipe-separated output without tree chars
-  if lsblk -f -o NAME,SIZE,FSTYPE,FSVER,MOUNTPOINT,PARTUUID,UUID --noheadings --raw &>/dev/null; then
-    lsblk -f -o NAME,SIZE,FSTYPE,FSVER,MOUNTPOINT,PARTUUID,UUID --noheadings --raw
+  # lsblk --pairs for topology (NAME, SIZE, type, parent/child); NOT for FSTYPE
+  # FSTYPE comes from === BLKID === below — blkid reads superblocks directly
+  if command -v lsblk; then
+    lsblk --pairs
   else
-    lsblk -f --noheadings --raw 2>/dev/null || lsblk --raw 2>/dev/null || echo "N/A — lsblk failed"
+    echo "MISSING: lsblk"
+  fi
+  echo "---"
+  echo "=== BLKID ==="
+  # blkid reads filesystem signatures directly from disk — works even when
+  # the kernel block layer hasn't probed the device (e.g., fresh VM virtio disk)
+  if command -v blkid; then
+    blkid
+  else
+    echo "MISSING: blkid"
   fi
   echo "---"
 
@@ -240,7 +275,11 @@ btrfs_inspect_device() {
 
   echo "---"
   echo "=== FINDMNT ==="
-  findmnt -o SOURCE,TARGET,FSTYPE,OPTIONS 2>/dev/null || log_warn "findmnt not available or no mounts"
+  if command -v findmnt; then
+    findmnt -o SOURCE,TARGET,FSTYPE,OPTIONS
+  else
+    echo "MISSING: findmnt"
+  fi
   echo "---"
   echo "=== FSTAB ==="
   if [[ -f /etc/fstab ]]; then
@@ -259,45 +298,44 @@ log_ok "storage.txt written"
 # ---------------------------------------------------------------------------
 {
   echo "=== ALL NATIVE PACKAGES ==="
-  if pacman -Qqn &>/dev/null; then
+  if pacman -Qqn; then
     pacman -Qqn | sort
   else
-    echo "N/A — no local package database (running from ISO?)"
+    echo "MISSING: pacman package database (running from ISO?)"
     log_warn "pacman -Qqn failed — likely on ISO or fresh install"
   fi
   echo "---"
   echo "=== ALL FOREIGN (AUR) PACKAGES ==="
-  if pacman -Qqm &>/dev/null; then
+  if pacman -Qqm; then
     pacman -Qqm | sort
   else
-    echo "N/A — no local package database"
+    echo "MISSING: pacman package database"
   fi
   echo "---"
   echo "=== ORPHANS ==="
-  if pacman -Qqdt &>/dev/null; then
+  if pacman -Qqdt; then
     pacman -Qqdt | sort
   else
-    echo "N/A"
-    log_warn "No orphaned packages found (or pacman -Qqdt failed)"
+    echo "NO ORPHANS (or pacman -Qqdt unavailable)"
   fi
   echo "---"
   echo "=== EXPLICIT PACKAGES ==="
-  if pacman -Qqe &>/dev/null; then
+  if pacman -Qqe; then
     pacman -Qqe | sort
   else
-    echo "N/A — no local package database"
+    echo "MISSING: pacman package database"
   fi
   echo "---"
   echo "=== PACKAGE FILE INTEGRITY (non-zero altered) ==="
-  altered=""
-  if command -v timeout &>/dev/null && altered=$(timeout 10 pacman -Qkk 2>/dev/null | grep -v "0 altered files"); then
+  if command -v timeout && pacman -Qkk; then
+    altered=$(timeout 10 pacman -Qkk | grep -v "0 altered files")
     if [[ -n "$altered" ]]; then
       echo "$altered"
     else
-      log_warn "No altered files detected"
+      echo "No altered files detected"
     fi
   else
-    log_warn "pacman -Qkk failed or timed out — no local package database"
+    echo "MISSING: timeout or pacman -Qkk unavailable"
   fi
 } > "$OUTPUT_DIR/packages.txt"
 log_ok "packages.txt written"
@@ -307,38 +345,38 @@ log_ok "packages.txt written"
 # ---------------------------------------------------------------------------
 {
   echo "=== ENABLED SERVICES ==="
-  if command -v systemctl &>/dev/null; then
-    systemctl list-unit-files --state=enabled --no-pager 2>/dev/null || echo "N/A — systemctl failed"
+  if command -v systemctl; then
+    systemctl list-unit-files --state=enabled --no-pager
   else
-    echo "N/A — systemctl not available"
+    echo "MISSING: systemctl"
   fi
   echo "---"
   echo "=== ALL UNIT FILES ==="
-  if command -v systemctl &>/dev/null; then
-    systemctl list-unit-files --no-pager 2>/dev/null || echo "N/A"
+  if command -v systemctl; then
+    systemctl list-unit-files --no-pager
   else
-    echo "N/A"
+    echo "MISSING: systemctl"
   fi
   echo "---"
   echo "=== TIMERS ==="
-  if command -v systemctl &>/dev/null; then
-    systemctl list-timers --all --no-pager 2>/dev/null || echo "N/A"
+  if command -v systemctl; then
+    systemctl list-timers --all --no-pager
   else
-    echo "N/A"
+    echo "MISSING: systemctl"
   fi
   echo "---"
   echo "=== USER UNITS ==="
-  if systemctl --user list-unit-files --no-pager &>/dev/null; then
+  if systemctl --user list-unit-files --no-pager; then
     systemctl --user list-unit-files --no-pager
   else
-    echo "N/A — user systemd session not available"
+    echo "MISSING: user systemd session (expected on ISO)"
   fi
   echo "---"
   echo "=== MKINITCPIO ==="
   if [[ -f /etc/mkinitcpio.conf ]]; then
-    grep -E "^MODULES=|^HOOKS=|^BINARIES=|^FILES=" /etc/mkinitcpio.conf 2>/dev/null || echo "N/A — could not read mkinitcpio.conf"
+    grep -E "^MODULES=|^HOOKS=|^BINARIES=|^FILES=" /etc/mkinitcpio.conf
   else
-    echo "N/A — /etc/mkinitcpio.conf not found (running from ISO?)"
+    echo "MISSING: /etc/mkinitcpio.conf (running from ISO?)"
   fi
 } > "$OUTPUT_DIR/services.txt"
 log_ok "services.txt written"
@@ -350,44 +388,48 @@ log_ok "services.txt written"
   echo "=== CRITICAL BINARY HASHES ==="
   for f in /usr/bin/sudo /usr/bin/login /usr/bin/pacman /usr/lib/systemd/systemd \
            /boot/vmlinuz-linux-zen /boot/grub/x86_64-efi/core.efi; do
-    [[ -f "$f" ]] && sha256sum "$f" || echo "MISSING: $f"
+    if [[ -f "$f" ]]; then
+      sha256sum "$f"
+    else
+      echo "MISSING: $f"
+    fi
   done
 } > "$OUTPUT_DIR/security/hashes.txt"
 
 {
   echo "=== LISTENING SOCKETS ==="
-  if command -v ss &>/dev/null; then
+  if command -v ss; then
     ss -tulpn
   else
-    log_warn "ss not available"
+    echo "MISSING: ss"
   fi
   echo "---"
   echo "=== ESTABLISHED CONNECTIONS ==="
-  if command -v ss &>/dev/null; then
+  if command -v ss; then
     ss -tpn state established
   else
-    log_warn "ss not available"
+    echo "MISSING: ss"
   fi
 } > "$OUTPUT_DIR/security/listeners.txt"
 
 {
   echo "=== SETUID BINARIES ==="
-  if command -v find &>/dev/null; then
-    timeout 10 find /usr/bin -maxdepth 1 -perm -4000 ! -type d -exec ls -la {} \; 2>/dev/null || log_warn "find on /usr/bin timed out or failed"
-    timeout 10 find /usr/lib -maxdepth 2 -perm -4000 ! -type d -exec ls -la {} \; 2>/dev/null || log_warn "find on /usr/lib timed out or failed"
+  if command -v find; then
+    timeout 10 find /usr/bin -maxdepth 1 -perm -4000 ! -type d -exec ls -la {} \;
+    timeout 10 find /usr/lib -maxdepth 2 -perm -4000 ! -type d -exec ls -la {} \;
   else
-    log_warn "find not available"
+    echo "MISSING: find"
   fi
   echo "---"
   echo "=== ORPHANED SETUID ==="
-  if command -v find &>/dev/null && command -v pacman &>/dev/null; then
-    timeout 10 find /usr/bin /usr/lib -maxdepth 2 -perm -4000 ! -type d -print 2>/dev/null | while read -r f; do
-      if ! pacman -Qo "$f" &>/dev/null; then
+  if command -v find && command -v pacman; then
+    timeout 10 find /usr/bin /usr/lib -maxdepth 2 -perm -4000 ! -type d -print | while read -r f; do
+      if ! pacman -Qo "$f"; then
         echo "ORPHAN: $f"
       fi
     done
   else
-    echo "N/A — find or pacman not available"
+    echo "MISSING: find or pacman"
   fi
 } > "$OUTPUT_DIR/security/setuid.txt"
 
@@ -400,16 +442,16 @@ fi
 {
   echo "=== SUDOERS ==="
   if [[ -f /etc/sudoers ]]; then
-    cat /etc/sudoers 2>/dev/null || echo "N/A — could not read /etc/sudoers"
+    cat /etc/sudoers
   else
-    echo "N/A — /etc/sudoers not found"
+    echo "MISSING: /etc/sudoers"
   fi
   echo "---"
   echo "=== SUDOERS.D ==="
   if [[ -d /etc/sudoers.d/ ]]; then
-    find /etc/sudoers.d/ -type f -exec echo "==> {}" \; -exec cat {} \; 2>/dev/null || echo "N/A — could not read sudoers.d"
+    find /etc/sudoers.d/ -type f -exec echo "==> {}" \; -exec cat {} \;
   else
-    echo "N/A — /etc/sudoers.d/ not found"
+    echo "MISSING: /etc/sudoers.d/"
   fi
 } > "$OUTPUT_DIR/security/sudoers.txt"
 
@@ -420,33 +462,32 @@ log_ok "Security baseline written"
 # ---------------------------------------------------------------------------
 {
   echo "=== SWAY OUTPUTS ==="
-  if command -v swaymsg &>/dev/null; then
+  if command -v swaymsg; then
     swaymsg -t get_outputs
   else
-    log_warn "swaymsg not found (Sway not running?)"
+    echo "MISSING: swaymsg (Sway not running?)"
   fi
   echo "---"
   echo "=== SWAY INPUTS ==="
-  if command -v swaymsg &>/dev/null; then
+  if command -v swaymsg; then
     swaymsg -t get_inputs
   else
-    log_warn "swaymsg not found (Sway not running?)"
+    echo "MISSING: swaymsg (Sway not running?)"
   fi
   echo "---"
   echo "=== WAYLAND ENVS ==="
-  env_matches=""
   env_matches=$(env | grep -iE "wayland|sway|xdg|cursor")
   if [[ -n "$env_matches" ]]; then
     echo "$env_matches"
   else
-    log_warn "No Wayland/Sway environment variables found"
+    echo "NO WAYLAND ENVS"
   fi
   echo "---"
   echo "=== GPU DRIVER ==="
-  if command -v glxinfo &>/dev/null; then
+  if command -v glxinfo; then
     glxinfo -B | grep "OpenGL renderer"
   else
-    log_warn "glxinfo not found"
+    echo "MISSING: glxinfo"
   fi
 } > "$OUTPUT_DIR/sway.txt"
 log_ok "sway.txt written"

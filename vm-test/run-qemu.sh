@@ -68,9 +68,11 @@ fi
 # ---------------------------------------------------------------------------
 # Parse args
 # ---------------------------------------------------------------------------
+FORMATTED=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --disk-size) DISK_SIZE="$2"; shift 2 ;;
+    --formatted) FORMATTED=true; shift ;;
     --clean) rm -f "$DISK_IMG" "$UEFI_VARS"; ok "Cleaned virtual disk."; exit 0 ;;
     --help|-h)
       cat <<'EOF'
@@ -78,6 +80,7 @@ Usage: run-qemu.sh [OPTIONS]
 
 Options:
   --disk-size SIZE   Virtual disk size (default: 40G)
+  --formatted        Create disk with filesystems + BTRFS subvolumes (for subvol-reset testing)
   --clean            Delete virtual disk and start fresh
   --help             Show this help
 
@@ -89,7 +92,11 @@ Download Arch ISO:
   ln -s archlinux-x86_64.iso vm-test/archlinux.iso
 
 Then run:
+  # Fresh install test (raw disk → format-full in execute stage)
   ./vm-test/run-qemu.sh
+
+  # Reinstall test (pre-formatted disk → subvol-reset in execute stage)
+  ./vm-test/run-qemu.sh --formatted
 
 EOF
       exit 0
@@ -145,6 +152,7 @@ if [[ ! -f "$DISK_IMG" ]]; then
   info "Creating virtual disk..."
   echo "  File: $DISK_IMG"
   echo "  Size: $DISK_SIZE"
+  echo "  Mode: ${FORMATTED:+formatted (with filesystems)}${FORMATTED:-raw partitions only}"
   echo ""
 
   qemu-img create -f raw "$DISK_IMG" "$DISK_SIZE"
@@ -158,52 +166,61 @@ if [[ ! -f "$DISK_IMG" ]]; then
   parted -s "$DISK_IMG" mkpart primary btrfs   10.5GiB 100%     # Rest = Arch pool
   ok "Partition table created."
 
-  info "Attaching disk to loop device for formatting..."
-  LOOP_DEV=$($SUDO losetup -f --show -P "$DISK_IMG")
-  sleep 2  # Wait for kernel to populate partitions
+  if [[ "$FORMATTED" == true ]]; then
+    info "Attaching disk to loop device for formatting..."
+    LOOP_DEV=$($SUDO losetup -f --show -P "$DISK_IMG")
+    sleep 2  # Wait for kernel to populate partitions
 
-  ok "Attached to: $LOOP_DEV"
+    ok "Attached to: $LOOP_DEV"
 
-  info "Formatting partitions..."
+    info "Formatting partitions..."
 
-  # p1: Windows EFI
-  $SUDO mkfs.vfat -F32 -n "WIN_EFI" "${LOOP_DEV}p1"
-  ok "  p1 → FAT32 (Windows EFI)"
+    # p1: Windows EFI
+    $SUDO mkfs.vfat -F32 -n "WIN_EFI" "${LOOP_DEV}p1"
+    ok "  p1 → FAT32 (Windows EFI)"
 
-  # p3: Fake Windows OS (ntfs if available, else ext4)
-  if command -v mkfs.ntfs &>/dev/null; then
-    $SUDO mkfs.ntfs -f -L "Windows" "${LOOP_DEV}p3"
-    ok "  p3 → NTFS (Windows OS)"
-  else
-    $SUDO mkfs.ext4 -L "Windows" "${LOOP_DEV}p3"
-    warn "  p3 → ext4 (Windows OS) — install ntfs-3g for real NTFS"
+    # p3: Fake Windows OS (ntfs if available, else ext4)
+    if command -v mkfs.ntfs &>/dev/null; then
+      $SUDO mkfs.ntfs -f -L "Windows" "${LOOP_DEV}p3"
+      ok "  p3 → NTFS (Windows OS)"
+    else
+      $SUDO mkfs.ext4 -L "Windows" "${LOOP_DEV}p3"
+      warn "  p3 → ext4 (Windows OS) — install ntfs-3g for real NTFS"
+    fi
+
+    # p4: Shared EFI (where Arch GRUB will live)
+    $SUDO mkfs.vfat -F32 -n "EFI" "${LOOP_DEV}p4"
+    ok "  p4 → FAT32 (Shared EFI)"
+
+    # p5: BTRFS root pool with your exact subvolume layout
+    $SUDO mkfs.btrfs -f -L "ArchPool" "${LOOP_DEV}p5"
+    ok "  p5 → BTRFS (Arch root pool)"
+
+    info "Creating BTRFS subvolumes (@, @home, @swap, @snapshots)..."
+    TMPMNT=$(mktemp -d /dev/shm/zenbook-btrfs.XXXXXX)
+    $SUDO mount "${LOOP_DEV}p5" "$TMPMNT"
+    $SUDO btrfs subvolume create "$TMPMNT"/@
+    $SUDO btrfs subvolume create "$TMPMNT"/@home
+    $SUDO btrfs subvolume create "$TMPMNT"/@swap
+    $SUDO btrfs subvolume create "$TMPMNT"/@snapshots
+    $SUDO umount "$TMPMNT"
+    $SUDO rmdir "$TMPMNT"
+    ok "Subvolumes created."
+
+    $SUDO losetup -d "$LOOP_DEV"
+    ok "Disk detached."
   fi
-
-  # p4: Shared EFI (where Arch GRUB will live)
-  $SUDO mkfs.vfat -F32 -n "EFI" "${LOOP_DEV}p4"
-  ok "  p4 → FAT32 (Shared EFI)"
-
-  # p5: BTRFS root pool with your exact subvolume layout
-  $SUDO mkfs.btrfs -f -L "ArchPool" "${LOOP_DEV}p5"
-  ok "  p5 → BTRFS (Arch root pool)"
-
-  info "Creating BTRFS subvolumes (@, @home, @swap, @snapshots)..."
-  TMPMNT=$(mktemp -d /dev/shm/zenbook-btrfs.XXXXXX)
-  $SUDO mount "${LOOP_DEV}p5" "$TMPMNT"
-  $SUDO btrfs subvolume create "$TMPMNT"/@
-  $SUDO btrfs subvolume create "$TMPMNT"/@home
-  $SUDO btrfs subvolume create "$TMPMNT"/@swap
-  $SUDO btrfs subvolume create "$TMPMNT"/@snapshots
-  $SUDO umount "$TMPMNT"
-  $SUDO rmdir "$TMPMNT"
-  ok "Subvolumes created."
-
-  $SUDO losetup -d "$LOOP_DEV"
-  ok "Disk detached."
 
   echo ""
   ok "Virtual disk ready!"
   echo ""
+else
+  if [[ "$FORMATTED" == true ]]; then
+    warn "Disk already exists at $DISK_IMG"
+    warn "Use --clean first to recreate with filesystems, or run without --formatted to use the existing disk."
+    exit 1
+  fi
+  info "Using existing disk: $DISK_IMG"
 fi
 
 # ---------------------------------------------------------------------------
@@ -270,6 +287,11 @@ QEMU_ARGS=(
   # Inside VM: mkdir -p /mnt/shared && mount -t 9p -o trans=virtio hostshare /mnt/shared
   -virtfs local,path=${SCRIPT_DIR}/shared,mount_tag=hostshare,security_model=none,multidevs=remap
 )
+
+# Headless fallback: use -display none + serial console for non-sandboxed agents
+if [[ "${QEMU_HEADLESS:-}" == "true" ]]; then
+  QEMU_ARGS=(-display none -nographic -serial mon:stdio)
+fi
 
 if [[ -f "$ISO" ]]; then
   QEMU_ARGS+=(-cdrom "$ISO" -boot d)

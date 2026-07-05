@@ -45,36 +45,39 @@ log_info "Generating profile from $INSPECT_DIR"
 # ---------------------------------------------------------------------------
 # Extract values from inspect data
 # ---------------------------------------------------------------------------
-HOSTNAME="$(hostname 2>/dev/null || echo archbox)"
+HOSTNAME="$(hostname)"
 
 # CPU vendor
-cpu_vendor="$(grep "Vendor ID" "$INSPECT_DIR/hardware.txt" 2>/dev/null | head -n1 | awk '{print $3}' | tr '[:upper:]' '[:lower:]' || true)"
-[[ "$cpu_vendor" == *"amd"* ]] && UCODE="amd-ucode" || UCODE="intel-ucode"
+cpu_vendor="$(grep "Vendor ID" "$INSPECT_DIR/hardware.txt" | head -n1 | awk '{print $3}' | tr '[:upper:]' '[:lower:]')"
+if [[ "$cpu_vendor" == *"amd"* ]]; then
+  UCODE="amd-ucode"
+else
+  UCODE="intel-ucode"
+fi
 
 # Kernel (from /proc/cmdline in inspect output)
 kernel_pkg=""
-if grep -q "vmlinuz-" "$INSPECT_DIR/storage.txt" 2>/dev/null; then
-  kernel_pkg="$(grep -oP 'vmlinuz-\K[^ ]+' "$INSPECT_DIR/storage.txt" | head -n1 | sed 's/^vmlinuz-//' || true)"
+if grep -q "vmlinuz-" "$INSPECT_DIR/storage.txt"; then
+  kernel_pkg="$(grep -oP 'vmlinuz-\K[^ ]+' "$INSPECT_DIR/storage.txt" | head -n1 | sed 's/^vmlinuz-//')"
 fi
 [[ -z "$kernel_pkg" ]] && kernel_pkg="linux-zen"
 
 # Root partition UUID (from cmdline in inspect output)
 root_part_uuid=""
-if grep -q "root=UUID" "$INSPECT_DIR/storage.txt" 2>/dev/null; then
-  root_part_uuid="$(grep "root=UUID" "$INSPECT_DIR/storage.txt" | grep -oP 'root=UUID=\K[^ ]+' | head -n1 || true)"
+if grep -q "root=UUID" "$INSPECT_DIR/storage.txt"; then
+  root_part_uuid="$(grep "root=UUID" "$INSPECT_DIR/storage.txt" | grep -oP 'root=UUID=\K[^ ]+' | head -n1)"
 fi
 
 # Resume offset (from cmdline in inspect output)
 resume_offset=""
-if grep -q "resume_offset=" "$INSPECT_DIR/storage.txt" 2>/dev/null; then
-  resume_offset="$(grep -oP 'resume_offset=\K[0-9]+' "$INSPECT_DIR/storage.txt" | head -n1 || true)"
+if grep -q "resume_offset=" "$INSPECT_DIR/storage.txt"; then
+  resume_offset="$(grep -oP 'resume_offset=\K[0-9]+' "$INSPECT_DIR/storage.txt" | head -n1)"
 fi
 
 # BTRFS detection from inspect output
-if grep -q "=== BTRFS DETECTED: YES ===" "$INSPECT_DIR/storage.txt" 2>/dev/null; then
+if grep -q "=== BTRFS DETECTED: YES ===" "$INSPECT_DIR/storage.txt"; then
   btrfs_detected=true
-  # Try to extract the BTRFS device from inspect output
-  btrfs_dev="$(grep "^=== BTRFS DEVICE:" "$INSPECT_DIR/storage.txt" 2>/dev/null | head -n1 | awk '{print $4}' || true)"
+  btrfs_dev="$(grep "^=== BTRFS DEVICE:" "$INSPECT_DIR/storage.txt" | head -n1 | awk '{print $4}')"
   log_info "BTRFS detected on device: ${btrfs_dev:-unknown}"
 else
   btrfs_detected=false
@@ -84,7 +87,6 @@ fi
 # Extract base packages from explicit list
 pkg_list=""
 if [[ -f "$INSPECT_DIR/packages.txt" ]]; then
-  # Extract lines between "EXPLICIT PACKAGES" and next "==="
   pkg_list=$(awk '/EXPLICIT PACKAGES/{flag=1;next}/^===/{flag=0}flag' "$INSPECT_DIR/packages.txt" | grep -v '^$' | sort -u)
 fi
 
@@ -111,43 +113,32 @@ fi
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# Disk layout discovery from lsblk output in inspect data
+# Disk layout discovery from inspect data
 # ---------------------------------------------------------------------------
 log_info "Discovering disk layout from inspect data..."
 
-# Parse lsblk output to find actual disk and partition names
-# lsblk -f output format: NAME SIZE FSTYPE FSVER MOUNTPOINT PARTUUID UUID
+# blkid format: /dev/vda1: UUID="..." TYPE="vfat" PARTUUID="..."
+# blkid reads superblocks directly — works even when kernel hasn't probed the device
+# (e.g., fresh virtio disk in VM where lsblk -f shows blank FSTYPE)
 _disk=""
 _efi_dev=""
 _root_dev=""
 
 if [[ -f "$INSPECT_DIR/storage.txt" ]]; then
-  # Extract the lsblk table (raw format: pipe-separated, no tree chars)
-  lsblk_data=$(awk '/=== BLOCK DEVICES ===/{flag=1;next}/^---/{flag=0}flag' "$INSPECT_DIR/storage.txt")
+  blkid_data=$(awk '/^=== BLKID$/{flag=1;next}/^=== *$|^---$/{flag=0}flag' "$INSPECT_DIR/storage.txt")
 
-  # Find BTRFS partition (field 3 = FSTYPE in NAME|SIZE|FSTYPE|... format)
-  _root_dev=$(echo "$lsblk_data" | awk -F'|' '$3 == "btrfs" {print "/dev/" $1; exit}')
-
-  # Find vfat partition (EFI)
-  _efi_dev=$(echo "$lsblk_data" | awk -F'|' '$3 == "vfat" {print "/dev/" $1; exit}')
-
-  # Fallback: if raw format didn't match, try old tree format
-  # Tree format: lsblk -f outputs NAME FSTYPE SIZE → FSTYPE is $2
-  if [[ -z "$_root_dev" ]]; then
-    _root_dev=$(echo "$lsblk_data" | sed 's/^[├└─| ]*//' | awk '$2 == "btrfs" {print "/dev/" $1; exit}')
-  fi
-  if [[ -z "$_efi_dev" ]]; then
-    _efi_dev=$(echo "$lsblk_data" | sed 's/^[├└─| ]*//' | awk '$2 == "vfat" {print "/dev/" $1; exit}')
-  fi
+  # Extract device with TYPE="btrfs" (root pool) and TYPE="vfat" (EFI)
+  _root_dev=$(echo "$blkid_data" | sed -n 's|^ *\(/dev/[^:]*\):.* TYPE="btrfs".*|\1|p' | head -n1)
+  _efi_dev=$(echo "$blkid_data" | sed -n 's|^ *\(/dev/[^:]*\):.* TYPE="vfat".*|\1|p' | head -n1)
 
   # Infer parent disk from partition name
-  # vda5 -> /dev/vda, nvme0n1p2 -> /dev/nvme0n1
+  # vda5 -> /dev/vda, nvme0n1p2 -> /dev/nvme0n1, sda1 -> /dev/sda
   if [[ -n "$_root_dev" ]]; then
-    _part_name="${_root_dev##*/}"  # e.g. vda5 or nvme0n1p2
+    _part_name="${_root_dev##*/}"
     if [[ "$_part_name" =~ ^nvme ]]; then
-      _disk="/dev/${_part_name%p*}"  # nvme0n1p2 -> nvme0n1
+      _disk="/dev/${_part_name%p*}"
     else
-      _disk="/dev/${_part_name%%[0-9]*}"  # vda5 -> vda, sda1 -> sda
+      _disk="/dev/${_part_name%%[0-9]*}"
     fi
   elif [[ -n "$_efi_dev" ]]; then
     _part_name="${_efi_dev##*/}"
@@ -159,9 +150,8 @@ if [[ -f "$INSPECT_DIR/storage.txt" ]]; then
   fi
 fi
 
-# Validate we found something — do NOT hardcode device names; use empty string
-# so the profile explicitly flags manual review needed rather than silently
-# inserting a broken /dev/nvme0n1* path on a virtio/sata host.
+# Validate we found something — use explicit placeholders so failures are obvious
+# rather than silently inserting a wrong device path.
 if [[ -z "$_disk" || -z "$_root_dev" ]]; then
   log_warn "Could not auto-detect disk layout from inspect data."
   log_warn "Falling back to defaults — YOU MUST EDIT THE GENERATED PROFILE."

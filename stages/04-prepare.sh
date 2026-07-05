@@ -58,21 +58,27 @@ verify_disk "$_dev"
 # 3. Network
 # ---------------------------------------------------------------------------
 log_info "Checking network connectivity..."
-if ping -c 1 -W 3 archlinux.org &>/dev/null; then
+if ping -c 1 -W 3 archlinux.org; then
   log_ok "Network OK"
 else
   log_warn "No network. Attempting DHCP via systemd-networkd..."
   # Modern Arch ISO uses systemd-networkd, not dhcpcd
-  if command -v networkctl &>/dev/null; then
-    run systemctl start systemd-networkd || log_warn "systemd-networkd start failed"
+  if command -v networkctl; then
+    if ! run systemctl start systemd-networkd; then
+      log_warn "systemd-networkd start failed"
+    fi
     sleep 3
-  elif command -v dhcpcd &>/dev/null; then
-    run dhcpcd || log_warn "dhcpcd failed (network may already be configured)"
+  elif command -v dhcpcd; then
+    if ! run dhcpcd; then
+      log_warn "dhcpcd failed (network may already be configured)"
+    fi
     sleep 2
   else
     log_warn "No DHCP client found (systemd-networkd or dhcpcd)"
   fi
-  ping -c 1 -W 3 archlinux.org &>/dev/null || die "Network unreachable. Fix before proceeding."
+  if ! ping -c 1 -W 3 archlinux.org; then
+    die "Network unreachable. Fix before proceeding."
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -101,12 +107,14 @@ log_info "Current BTRFS subvolumes on $root_dev:"
 if [[ "$DRY_RUN" == "false" ]]; then
   tmpmnt=$(mktemp -d)
   if mount "$root_dev" "$tmpmnt"; then
-    if btrfs subvolume list "$tmpmnt" &>/dev/null; then
+    if btrfs subvolume list "$tmpmnt"; then
       btrfs subvolume list "$tmpmnt"
     else
       log_warn "Could not list subvolumes on $root_dev"
     fi
-    umount "$tmpmnt" || log_warn "Failed to unmount $tmpmnt"
+    if ! umount "$tmpmnt"; then
+      log_warn "Failed to unmount $tmpmnt"
+    fi
   else
     log_warn "Failed to mount $root_dev for subvolume preview"
   fi

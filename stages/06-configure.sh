@@ -107,8 +107,10 @@ if ! command -v yay &>/dev/null; then
   "
 
   # Cleanup
-  if id "$BUILD_USER" &>/dev/null; then
-    run userdel -r "$BUILD_USER" || log_warn "Failed to remove build user $BUILD_USER"
+  if id "$BUILD_USER"; then
+    if ! run userdel -r "$BUILD_USER"; then
+      log_warn "Failed to remove build user $BUILD_USER"
+    fi
   fi
   if [[ -f /etc/sudoers.d/99-${BUILD_USER} ]]; then
     run rm -f /etc/sudoers.d/99-${BUILD_USER}
@@ -176,13 +178,13 @@ fi
 # ---------------------------------------------------------------------------
 # 7. Timeshift setup
 # ---------------------------------------------------------------------------
-if command -v timeshift &>/dev/null; then
+if command -v timeshift; then
   log_info "Setting up timeshift..."
   # Ensure snapshot directory exists
   run mkdir -p /.snapshots
   # Create initial snapshot
-  if command -v timeshift &>/dev/null; then
-    run timeshift --create --comments "post-install baseline" || log_warn "timeshift snapshot creation failed (may need initial config)"
+  if ! run timeshift --create --comments "post-install baseline"; then
+    log_warn "timeshift snapshot creation failed (may need initial config)"
   fi
   log_ok "Timeshift baseline snapshot created."
 fi
