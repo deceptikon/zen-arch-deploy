@@ -284,7 +284,7 @@ log_ok "storage.txt written"
   fi
   echo "---"
   echo "=== PACKAGE FILE INTEGRITY (non-zero altered) ==="
-  local altered
+  altered=""
   if altered=$(pacman -Qkk 2>/dev/null | grep -v "0 altered files"); then
     if [[ -n "$altered" ]]; then
       echo "$altered"
@@ -424,7 +424,7 @@ log_ok "Security baseline written"
   fi
   echo "---"
   echo "=== WAYLAND ENVS ==="
-  local env_matches
+  env_matches=""
   env_matches=$(env | grep -iE "wayland|sway|xdg|cursor")
   if [[ -n "$env_matches" ]]; then
     echo "$env_matches"
