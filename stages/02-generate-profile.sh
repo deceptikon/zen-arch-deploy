@@ -140,7 +140,7 @@ _efi_dev=""
 _root_dev=""
 
 if [[ -f "$INSPECT_DIR/storage.txt" ]]; then
-  blkid_data=$(awk '/^=== BLKID$/{flag=1;next}/^=== *$|^---$/{flag=0}flag' "$INSPECT_DIR/storage.txt")
+  blkid_data=$(awk '/^=== BLKID ===$/{flag=1;next}/^=== *$|^---$/{flag=0}flag' "$INSPECT_DIR/storage.txt")
 
   # Extract device with TYPE="btrfs" (root pool) and TYPE="vfat" (EFI)
   _root_dev=$(echo "$blkid_data" | sed -n 's|^ *\(/dev/[^:]*\):.* TYPE="btrfs".*|\1|p' | head -n1)

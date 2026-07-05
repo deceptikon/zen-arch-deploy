@@ -1,0 +1,6 @@
+=== ENABLED SERVICES ===
+UNIT FILE           STATE
+NetworkManager.service enabled
+sddm.service        enabled
+systemd-timesyncd.service enabled
+bluetooth.service   enabled

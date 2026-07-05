@@ -1,0 +1,34 @@
+=== BLOCK DEVICES ===
+NAME="vda" SIZE="40G" TYPE="disk"
+NAME="vda1" SIZE="100M" TYPE="part"
+NAME="vda2" SIZE="16M" TYPE="part"
+NAME="vda3" SIZE="10G" TYPE="part"
+NAME="vda4" SIZE="555M" TYPE="part"
+NAME="vda5" SIZE="29.3G" TYPE="part"
+---
+=== BLKID ===
+/dev/vda1: UUID="A1B2-C3D4" TYPE="vfat" PARTUUID="11111111-01"
+/dev/vda3: UUID="1234567890ABCDEF" TYPE="ntfs" PARTUUID="11111111-03"
+/dev/vda4: UUID="E5F6-G7H8" TYPE="vfat" PARTUUID="11111111-04"
+/dev/vda5: UUID="bc5635fd-1f9c-4b32-a447-55acf4b67fb0" TYPE="btrfs" PARTUUID="11111111-05"
+---
+=== BTRFS DETECTED: YES ===
+---
+=== BTRFS DEVICE: /dev/vda5 ===
+Mountpoint: /mnt/tmp.XXXX
+---
+=== SUBVOLUMES ===
+ID 256 gen 16 top level 5 path @
+ID 257 gen 12 top level 5 path @home
+ID 258 gen 8 top level 5 path @swap
+ID 259 gen 5 top level 5 path @snapshots
+---
+=== UUID ===
+bc5635fd-1f9c-4b32-a447-55acf4b67fb0
+---
+=== FINDMNT ===
+---
+=== FSTAB ===
+---
+=== KERNEL CMDLINE ===
+BOOT_IMAGE=/boot/vmlinuz-linux-zen root=UUID=bc5635fd-1f9c-4b32-a447-55acf4b67fb0 rw rootflags=subvol=@ loglevel=3 quiet

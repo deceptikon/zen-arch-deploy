@@ -1,0 +1,15 @@
+=== MACHINE ===
+Standard PC (Q35 + ICH9, 2009)
+=== CPU ===
+Vendor ID:      AuthenticAMD
+Model name:     AMD Ryzen 7 PRO 4750U with Radeon Graphics
+Thread(s) per core: 2
+Core(s) per socket: 4
+=== RAM ===
+          total     used     free   shared  buff/cache   available
+Mem:       3.8Gi       1.2Gi       2.6Gi       0.0Ki       0.0Gi       2.6Gi
+=== DISKS ===
+=== PCI ===
+=== USB ===
+=== FIRMWARE ===
+UEFI mode

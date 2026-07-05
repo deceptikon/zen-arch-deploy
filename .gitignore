@@ -20,3 +20,6 @@ vm-test/OVMF_VARS.fd
 
 # Stage logs
 logs/
+
+# Test fixture output (generated)
+test-inspect-out/

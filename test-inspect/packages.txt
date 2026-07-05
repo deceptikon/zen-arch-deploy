@@ -1,0 +1,22 @@
+=== EXPLICIT PACKAGES ===
+base
+base-devel
+linux-zen
+linux-zen-headers
+amd-ucode
+grub
+efibootmgr
+os-prober
+btrfs-progs
+networkmanager
+pipewire
+pipewire-pulse
+wireplumber
+sway
+waybar
+dunst
+foot
+zsh
+git
+vim
+firefox
