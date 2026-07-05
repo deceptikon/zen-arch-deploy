@@ -228,7 +228,7 @@ desktop:
 
 dotfiles:
   manager: chezmoi
-  repo: ""                     # <-- SET THIS before running configure stage
+  repo: "https://github.com/deceptikon/dotfiles.git"
   branch: main
 
 security:

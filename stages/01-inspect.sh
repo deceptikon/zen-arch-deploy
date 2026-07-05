@@ -75,25 +75,144 @@ log_ok "hardware.txt written"
 # ---------------------------------------------------------------------------
 # Storage
 # ---------------------------------------------------------------------------
-{
-  echo "=== BTRFS SUBVOLUMES ==="
-  if command -v btrfs &>/dev/null && findmnt -o FSTYPE / | grep -q btrfs; then
-    btrfs subvolume list /
+
+# Discover all BTRFS filesystems on the system, not just at /
+# This handles: host systems, ISO environments, external drives, etc.
+
+declare -a BTRFS_DEVICES=()
+declare -a BTRFS_MOUNTS=()
+
+btrfs_discover() {
+  log_info "Discovering BTRFS filesystems..."
+
+  # Fast path: root filesystem is btrfs
+  if command -v findmnt &>/dev/null && findmnt -o FSTYPE -n / 2>/dev/null | grep -q '^btrfs$'; then
+    log_ok "Root filesystem is BTRFS"
+    BTRFS_DEVICES+=("$(findmnt -o SOURCE -n /)")
+    BTRFS_MOUNTS+=("/")
+    return 0
+  fi
+
+  # Scan all block devices for btrfs filesystems
+  if command -v blkid &>/dev/null; then
+    while read -r dev; do
+      [[ -n "$dev" ]] || continue
+      # Skip if already in list
+      local skip=false
+      for d in "${BTRFS_DEVICES[@]}"; do
+        [[ "$d" == "$dev" ]] && skip=true && break
+      done
+      if [[ "$skip" == false ]]; then
+        log_info "Found BTRFS device: $dev"
+        BTRFS_DEVICES+=("$dev")
+        BTRFS_MOUNTS+=("")
+      fi
+    done < <(blkid -t TYPE=btrfs -o device 2>/dev/null)
+  fi
+
+  # Also check btrfs filesystem show as a secondary scan
+  if command -v btrfs &>/dev/null; then
+    while read -r dev; do
+      [[ -n "$dev" ]] || continue
+      local skip=false
+      for d in "${BTRFS_DEVICES[@]}"; do
+        [[ "$d" == "$dev" ]] && skip=true && break
+      done
+      if [[ "$skip" == false ]]; then
+        log_info "Found BTRFS device (via btrfs show): $dev"
+        BTRFS_DEVICES+=("$dev")
+        BTRFS_MOUNTS+=("")
+      fi
+    done < <(btrfs filesystem show -d 2>/dev/null | awk '/dev/ {print $NF}')
+  fi
+
+  if [[ ${#BTRFS_DEVICES[@]} -eq 0 ]]; then
+    log_warn "No BTRFS filesystems found on any block device"
+    return 1
+  fi
+
+  return 0
+}
+
+btrfs_inspect_device() {
+  local dev="$1"
+  local idx="$2"
+  local was_mounted=false
+  local mnt=""
+
+  # Check if already mounted somewhere
+  if command -v findmnt &>/dev/null; then
+    mnt=$(findmnt -o TARGET -n "$dev" 2>/dev/null | head -n1)
+  fi
+
+  if [[ -n "$mnt" ]]; then
+    log_info "BTRFS $dev already mounted at $mnt"
+    was_mounted=true
   else
-    log_warn "Root is not BTRFS — skipping subvolume list"
+    # Temporarily mount to inspect
+    mnt=$(mktemp -d)
+    log_info "Temporarily mounting $dev at $mnt for inspection..."
+    if ! mount -t btrfs "$dev" "$mnt" &>/dev/null; then
+      log_warn "Failed to mount $dev — skipping BTRFS inspection for this device"
+      rmdir "$mnt" 2>/dev/null || true
+      return 1
+    fi
+    was_mounted=false
+  fi
+
+  echo "---"
+  echo "=== BTRFS DEVICE: $dev ==="
+  echo "Mountpoint: $mnt"
+  echo "---"
+  echo "=== SUBVOLUMES ==="
+  if command -v btrfs &>/dev/null; then
+    btrfs subvolume list "$mnt" 2>/dev/null || log_warn "Could not list subvolumes on $dev"
+  else
+    log_warn "btrfs tool not available"
   fi
   echo "---"
-  echo "=== BTRFS DF ==="
-  btrfs filesystem df /
+  echo "=== DF ==="
+  btrfs filesystem df "$mnt" 2>/dev/null || log_warn "Could not get df for $dev"
   echo "---"
-  echo "=== BTRFS USAGE ==="
-  btrfs filesystem usage /
+  echo "=== USAGE ==="
+  btrfs filesystem usage "$mnt" 2>/dev/null || log_warn "Could not get usage for $dev"
+  echo "---"
+  echo "=== UUID ==="
+  blkid -s UUID -o value "$dev" 2>/dev/null || log_warn "Could not get UUID for $dev"
+
+  # Unmount if we mounted it
+  if [[ "$was_mounted" == false ]]; then
+    umount "$mnt" || log_warn "Failed to unmount $mnt"
+    rmdir "$mnt" || true
+  fi
+}
+
+{
+  echo "=== BLOCK DEVICES ==="
+  lsblk -f -o NAME,SIZE,FSTYPE,FSVER,MOUNTPOINT,PARTUUID,UUID
+  echo "---"
+
+  if btrfs_discover; then
+    echo "=== BTRFS DETECTED: YES ==="
+    for i in "${!BTRFS_DEVICES[@]}"; do
+      btrfs_inspect_device "${BTRFS_DEVICES[$i]}" "$i"
+    done
+  else
+    echo "=== BTRFS DETECTED: NO ==="
+    echo "No BTRFS filesystems found on any block device."
+    echo "If this is intentional (fresh install), generate-profile will use format-full strategy."
+  fi
+
   echo "---"
   echo "=== FINDMNT ==="
-  findmnt -o SOURCE,TARGET,FSTYPE,OPTIONS
+  findmnt -o SOURCE,TARGET,FSTYPE,OPTIONS 2>/dev/null || log_warn "findmnt not available or no mounts"
   echo "---"
   echo "=== FSTAB ==="
-  cat /etc/fstab
+  if [[ -f /etc/fstab ]]; then
+    cat /etc/fstab
+  else
+    echo "No /etc/fstab (running from ISO?)"
+  fi
   echo "---"
   echo "=== KERNEL CMDLINE ==="
   cat /proc/cmdline

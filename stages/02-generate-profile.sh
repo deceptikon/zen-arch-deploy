@@ -52,6 +52,17 @@ root_part_uuid="$(grep "root=UUID" "$INSPECT_DIR/storage.txt" | grep -oP 'root=U
 # Resume offset
 resume_offset="$(grep -oP 'resume_offset=\K[0-9]+' "$INSPECT_DIR/storage.txt" | head -n1)"
 
+# BTRFS detection from inspect output
+if grep -q "=== BTRFS DETECTED: YES ===" "$INSPECT_DIR/storage.txt" 2>/dev/null; then
+  btrfs_detected=true
+  # Try to extract the BTRFS device from inspect output
+  btrfs_dev="$(grep "^=== BTRFS DEVICE:" "$INSPECT_DIR/storage.txt" | head -n1 | awk '{print $4}')"
+  log_info "BTRFS detected on device: ${btrfs_dev:-unknown}"
+else
+  btrfs_detected=false
+  log_warn "No BTRFS detected in inspect output. Will generate fresh-install profile."
+fi
+
 # Extract base packages from explicit list
 pkg_list=""
 if [[ -f "$INSPECT_DIR/packages.txt" ]]; then
@@ -80,6 +91,20 @@ fi
 # ---------------------------------------------------------------------------
 # Write YAML
 # ---------------------------------------------------------------------------
+
+# Determine wipe strategy and storage layout based on BTRFS detection
+if [[ "$btrfs_detected" == true ]]; then
+  wipe_strategy="subvol-reset"
+  root_fstype="btrfs"
+  root_preserve="true"
+  root_device="${btrfs_dev:-/dev/nvme0n1p2}"
+else
+  wipe_strategy="format-full"
+  root_fstype="ext4"
+  root_preserve="false"
+  root_device="/dev/nvme0n1p2"
+fi
+
 cat > "$YAML_OUT" <<EOF
 # =============================================================================
 # Profile: $PROFILE_NAME
@@ -102,7 +127,7 @@ gpu:
 
 storage:
   disk: /dev/nvme0n1
-  wipe_strategy: subvol-reset
+  wipe_strategy: $wipe_strategy
   purge_snapshots: true
   partitions:
     efi:
@@ -111,10 +136,14 @@ storage:
       mount: /efi
       preserve: true
     root_pool:
-      device: /dev/nvme0n1p2
-      fstype: btrfs
-      preserve: true
+      device: $root_device
+      fstype: $root_fstype
+      preserve: $root_preserve
       subvolumes:
+EOF
+
+if [[ "$btrfs_detected" == true ]]; then
+  cat >> "$YAML_OUT" <<'EOF'
         - name: "@"
           mount: "/"
           reset: true
@@ -131,6 +160,10 @@ storage:
           mount: "/.snapshots"
           reset: true
           options: ""
+EOF
+fi
+
+cat >> "$YAML_OUT" <<EOF
 
 bootloader:
   type: grub
