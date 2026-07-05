@@ -29,6 +29,9 @@ EOF
   esac
 done
 
+# Fall back to env var set by orchestrator
+[[ -z "$PROFILE" && -n "${ARCH_DEPLOY_PROFILE:-}" ]] && PROFILE="$ARCH_DEPLOY_PROFILE"
+
 [[ -n "$PROFILE" ]] || die "--profile is required"
 profile_load "$PROFILE"
 
