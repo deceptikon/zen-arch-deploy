@@ -2,6 +2,9 @@
 profiles/*.yaml
 profiles/*.env
 !profiles/example.yaml
+!profiles/example.env
+!profiles/zenbook-vm.yaml
+!profiles/zenbook-vm.env
 inspect-out/
 inspect-*.tar.gz
 
