@@ -17,3 +17,6 @@ vm-test/OVMF_VARS.fd
 *~
 *.swp
 *.swo
+
+# Stage logs
+logs/

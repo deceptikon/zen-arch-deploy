@@ -61,15 +61,34 @@ fi
     log_warn "Cannot read DMI product_version"
   fi
   echo "=== CPU ==="
-  lscpu | grep -E "Vendor ID|Model name|Thread|Core"
+  if command -v lscpu &>/dev/null; then
+    lscpu 2>/dev/null | grep -E "Vendor ID|Model name|Thread|Core" || echo "N/A"
+  else
+    echo "N/A — lscpu not available"
+  fi
   echo "=== RAM ==="
-  free -h
+  free -h 2>/dev/null || echo "N/A"
   echo "=== DISKS ==="
-  lsblk -f -o NAME,SIZE,FSTYPE,FSVER,MOUNTPOINT,PARTUUID,UUID
+  # Use safe lsblk columns; FSVER may not exist on all versions
+  if lsblk -f -o NAME,SIZE,FSTYPE,FSVER,MOUNTPOINT,PARTUUID,UUID &>/dev/null; then
+    lsblk -f -o NAME,SIZE,FSTYPE,FSVER,MOUNTPOINT,PARTUUID,UUID
+  elif lsblk -f -o NAME,SIZE,FSTYPE,MOUNTPOINT,PARTUUID,UUID &>/dev/null; then
+    lsblk -f -o NAME,SIZE,FSTYPE,MOUNTPOINT,PARTUUID,UUID
+  else
+    lsblk -f || echo "N/A — lsblk failed"
+  fi
   echo "=== PCI ==="
-  lspci -nnk | grep -A2 -E "VGA|Audio|Network|Ethernet|Wireless"
+  if command -v lspci &>/dev/null; then
+    lspci -nnk 2>/dev/null | grep -A2 -E "VGA|Audio|Network|Ethernet|Wireless" || echo "N/A"
+  else
+    echo "N/A — lspci not available"
+  fi
   echo "=== USB ==="
-  lsusb
+  if command -v lsusb &>/dev/null; then
+    lsusb 2>/dev/null || echo "N/A"
+  else
+    echo "N/A — lsusb not available"
+  fi
   echo "=== FIRMWARE ==="
   [ -d /sys/firmware/efi ] && echo "UEFI mode" || echo "Legacy BIOS"
   if command -v efibootmgr &>/dev/null; then
@@ -367,10 +386,18 @@ fi
 
 {
   echo "=== SUDOERS ==="
-  cat /etc/sudoers
+  if [[ -f /etc/sudoers ]]; then
+    cat /etc/sudoers 2>/dev/null || echo "N/A — could not read /etc/sudoers"
+  else
+    echo "N/A — /etc/sudoers not found"
+  fi
   echo "---"
   echo "=== SUDOERS.D ==="
-  find /etc/sudoers.d/ -type f -exec echo "==> {}" \; -exec cat {} \;
+  if [[ -d /etc/sudoers.d/ ]]; then
+    find /etc/sudoers.d/ -type f -exec echo "==> {}" \; -exec cat {} \; 2>/dev/null || echo "N/A — could not read sudoers.d"
+  else
+    echo "N/A — /etc/sudoers.d/ not found"
+  fi
 } > "$OUTPUT_DIR/security/sudoers.txt"
 
 log_ok "Security baseline written"
@@ -414,8 +441,21 @@ log_ok "sway.txt written"
 # ---------------------------------------------------------------------------
 # Dotfiles
 # ---------------------------------------------------------------------------
-find ~/.config -maxdepth 1 -type d | sort > "$OUTPUT_DIR/dotfiles/config-dirs.txt"
-find ~ -maxdepth 1 -name ".*" -type f | sort > "$OUTPUT_DIR/dotfiles/home-dotfiles.txt"
+{
+  if [[ -d ~/.config ]]; then
+    find ~/.config -maxdepth 1 -type d | sort
+  else
+    echo "N/A — ~/.config not found"
+  fi
+} > "$OUTPUT_DIR/dotfiles/config-dirs.txt"
+
+{
+  if [[ -d ~ ]]; then
+    find ~ -maxdepth 1 -name ".*" -type f | sort
+  else
+    echo "N/A — HOME not found"
+  fi
+} > "$OUTPUT_DIR/dotfiles/home-dotfiles.txt"
 
 # Optional: archive ~/.local/bin scripts
 if [[ -d ~/.local/bin ]]; then
@@ -431,3 +471,5 @@ log_ok "Dotfiles inventory written"
 # ---------------------------------------------------------------------------
 tar czf "inspect-$(date +%Y%m%d_%H%M%S).tar.gz" -C "$(dirname "$OUTPUT_DIR")" "$(basename "$OUTPUT_DIR")"
 log_ok "Inspection complete. Archive created."
+log_info "Inspect output: $OUTPUT_DIR"
+log_info "Log file: $LOG_FILE"
