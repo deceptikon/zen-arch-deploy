@@ -230,10 +230,11 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Prepare shared directory for 9p VirtFS
+# Prepare root directory for 9p VirtFS — share the whole arch-deploy project
 # ---------------------------------------------------------------------------
+PROJECT_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
 mkdir -p "${SCRIPT_DIR}/shared"
-ok "Shared directory ready: ${SCRIPT_DIR}/shared"
+ok "Shared root: ${PROJECT_ROOT} (mounted at /mnt/arch-deploy inside VM)"
 
 # ---------------------------------------------------------------------------
 # Prepare UEFI vars (fresh copy for clean NVRAM)
@@ -268,11 +269,20 @@ echo "  3. You land in Arch live environment"
 echo ""
 info "Next steps inside the VM:"
 echo "  loadkeys us"
-echo "  iwctl station wlan0 connect YOUR_WIFI   # or dhcpcd if wired"
-echo "  git clone https://github.com/YOU/arch-deploy.git"
-echo "  cd arch-deploy"
-echo "  ./arch-deploy.sh --profile profiles/zenbook-vm.yaml execute --dry-run"
-echo "  ./arch-deploy.sh --profile profiles/zenbook-vm.yaml execute"
+echo "  dhcpcd                                        # or: iwctl station wlan0 connect YOUR_WIFI"
+echo "  mount -t 9p -o trans=virtio hostshare /mnt/arch-deploy"
+echo "  cd /mnt/arch-deploy"
+echo "  ./stages/01-inspect.sh                        # detect disk layout"
+echo "  ./stages/02-generate-profile.sh               # build profile from inspect data"
+echo "  cat profiles/my-machine.yaml                  # verify auto-detected values"
+echo "  ./arch-deploy.sh --profile profiles/my-machine.yaml prepare --dry-run"
+echo "  ./arch-deploy.sh --profile profiles/my-machine.yaml execute --dry-run"
+echo "  ./arch-deploy.sh --profile profiles/my-machine.yaml execute"
+echo ""
+echo "Directories inside VM:"
+echo "  /mnt/arch-deploy          ← the full project (code + profiles + test fixture)"
+echo "  /mnt/arch-deploy/profiles ← generated & reference profiles"
+echo "  /mnt/arch-deploy/test-inspect ← reusable fixture for debug"
 echo ""
 warn "Press Ctrl+A then X in the QEMU window to force-quit if needed."
 echo ""
@@ -289,9 +299,9 @@ QEMU_ARGS=(
   -usb -device usb-tablet
   -vga virtio
   -display sdl,gl=on
-  # 9p VirtFS — share vm-test/shared with VM
-  # Inside VM: mkdir -p /mnt/shared && mount -t 9p -o trans=virtio hostshare /mnt/shared
-  -virtfs local,path=${SCRIPT_DIR}/shared,mount_tag=hostshare,security_model=none,multidevs=remap
+  # 9p VirtFS — share whole arch-deploy project root
+  # Inside VM: mount -t 9p -o trans=virtio hostshare /mnt/arch-deploy
+  -virtfs local,path=${PROJECT_ROOT},mount_tag=hostshare,security_model=none,multidevs=remap
 )
 
 # Headless fallback: use -display none + serial console for non-sandboxed agents

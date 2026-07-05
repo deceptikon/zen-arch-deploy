@@ -19,7 +19,7 @@ gpu:
 
 storage:
   disk: /dev/vda
-  wipe_strategy: subvol-reset
+  wipe_strategy: format-full
   purge_snapshots: true
   partitions:
     efi:
