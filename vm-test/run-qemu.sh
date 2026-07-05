@@ -271,6 +271,11 @@ QEMU_ARGS=(
   -virtfs local,path=${SCRIPT_DIR}/shared,mount_tag=hostshare,security_model=none,multidevs=remap
 )
 
+# Headless fallback: use -display none + serial console for non-sandboxed agents
+if [[ "${QEMU_HEADLESS:-}" == "true" ]]; then
+  QEMU_ARGS=(-display none -nographic -serial mon:stdio)
+fi
+
 if [[ -f "$ISO" ]]; then
   QEMU_ARGS+=(-cdrom "$ISO" -boot d)
   info "Booting from ISO (press Esc in QEMU for boot menu if needed)"
