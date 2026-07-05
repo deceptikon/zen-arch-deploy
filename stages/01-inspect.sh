@@ -232,28 +232,45 @@ log_ok "storage.txt written"
 # ---------------------------------------------------------------------------
 {
   echo "=== ALL NATIVE PACKAGES ==="
-  pacman -Qqn | sort
+  if pacman -Qqn &>/dev/null; then
+    pacman -Qqn | sort
+  else
+    echo "N/A — no local package database (running from ISO?)"
+    log_warn "pacman -Qqn failed — likely on ISO or fresh install"
+  fi
   echo "---"
   echo "=== ALL FOREIGN (AUR) PACKAGES ==="
-  pacman -Qqm | sort
+  if pacman -Qqm &>/dev/null; then
+    pacman -Qqm | sort
+  else
+    echo "N/A — no local package database"
+  fi
   echo "---"
   echo "=== ORPHANS ==="
   if pacman -Qqdt &>/dev/null; then
     pacman -Qqdt | sort
   else
-    log_warn "No orphaned packages found"
+    echo "N/A"
+    log_warn "No orphaned packages found (or pacman -Qqdt failed)"
   fi
   echo "---"
   echo "=== EXPLICIT PACKAGES ==="
-  pacman -Qqe | sort
+  if pacman -Qqe &>/dev/null; then
+    pacman -Qqe | sort
+  else
+    echo "N/A — no local package database"
+  fi
   echo "---"
   echo "=== PACKAGE FILE INTEGRITY (non-zero altered) ==="
   local altered
-  altered=$(pacman -Qkk | grep -v "0 altered files")
-  if [[ -n "$altered" ]]; then
-    echo "$altered"
+  if altered=$(pacman -Qkk 2>/dev/null | grep -v "0 altered files"); then
+    if [[ -n "$altered" ]]; then
+      echo "$altered"
+    else
+      log_warn "No altered files detected"
+    fi
   else
-    log_warn "No altered files detected (or pacman -Qkk failed)"
+    log_warn "pacman -Qkk failed — no local package database"
   fi
 } > "$OUTPUT_DIR/packages.txt"
 log_ok "packages.txt written"
@@ -263,23 +280,39 @@ log_ok "packages.txt written"
 # ---------------------------------------------------------------------------
 {
   echo "=== ENABLED SERVICES ==="
-  systemctl list-unit-files --state=enabled --no-pager
+  if command -v systemctl &>/dev/null; then
+    systemctl list-unit-files --state=enabled --no-pager 2>/dev/null || echo "N/A — systemctl failed"
+  else
+    echo "N/A — systemctl not available"
+  fi
   echo "---"
   echo "=== ALL UNIT FILES ==="
-  systemctl list-unit-files --no-pager
+  if command -v systemctl &>/dev/null; then
+    systemctl list-unit-files --no-pager 2>/dev/null || echo "N/A"
+  else
+    echo "N/A"
+  fi
   echo "---"
   echo "=== TIMERS ==="
-  systemctl list-timers --all --no-pager
+  if command -v systemctl &>/dev/null; then
+    systemctl list-timers --all --no-pager 2>/dev/null || echo "N/A"
+  else
+    echo "N/A"
+  fi
   echo "---"
   echo "=== USER UNITS ==="
   if systemctl --user list-unit-files --no-pager &>/dev/null; then
     systemctl --user list-unit-files --no-pager
   else
-    log_warn "User systemd session not available"
+    echo "N/A — user systemd session not available"
   fi
   echo "---"
   echo "=== MKINITCPIO ==="
-  grep -E "^MODULES=|^HOOKS=|^BINARIES=|^FILES=" /etc/mkinitcpio.conf
+  if [[ -f /etc/mkinitcpio.conf ]]; then
+    grep -E "^MODULES=|^HOOKS=|^BINARIES=|^FILES=" /etc/mkinitcpio.conf 2>/dev/null || echo "N/A — could not read mkinitcpio.conf"
+  else
+    echo "N/A — /etc/mkinitcpio.conf not found (running from ISO?)"
+  fi
 } > "$OUTPUT_DIR/services.txt"
 log_ok "services.txt written"
 
