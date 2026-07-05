@@ -18,50 +18,29 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# File logging setup
+# File logging — one file per run, appended
 # ---------------------------------------------------------------------------
 LOG_DIR="${ARCH_DEPLOY_LOG_DIR:-./logs}"
 mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/deploy.log"
 
-# Each invocation gets its own log file
-LOG_FILE="$LOG_DIR/arch-deploy-$(date +%Y%m%d_%H%M%S).log"
+# Rotate if > 5MB
+if [[ -f "$LOG_FILE" && $(stat -c%s "$LOG_FILE" 2>/dev/null || echo 0) -gt 5242880 ]]; then
+  mv "$LOG_FILE" "$LOG_FILE.old"
+fi
 
-# Initialize log file with header
-{
-  echo "================================"
-  echo "arch-deploy log started: $(date -Iseconds)"
-  echo "PWD: $(pwd)"
-  echo "USER: $(whoami 2>/dev/null || echo unknown)"
-  echo "================================"
-} > "$LOG_FILE"
-
-# ---------------------------------------------------------------------------
-# Logging — tee everything to both stderr and log file
-# ---------------------------------------------------------------------------
-_log_write() {
-  local level="$1"
-  shift
-  local msg="$*"
-  local timestamp
-  timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-  echo "[$timestamp] [$level] $msg" >> "$LOG_FILE"
-}
-
-log()       { _log_write "DEPLOY" "$@"; echo -e "${C_CYAN}[arch-deploy]${C_RESET} $*" >&2; }
-log_info()  { _log_write "INFO" "$@"; echo -e "${C_BLUE}[INFO]${C_RESET} $*" >&2; }
-log_ok()    { _log_write "OK" "$@"; echo -e "${C_GREEN}[OK]${C_RESET} $*" >&2; }
-log_warn()  { _log_write "WARN" "$@"; echo -e "${C_YELLOW}[WARN]${C_RESET} $*" >&2; }
-log_err()   { _log_write "ERR" "$@"; echo -e "${C_RED}[ERR]${C_RESET} $*" >&2; }
+log()       { echo -e "${C_CYAN}[arch-deploy]${C_RESET} $*" | tee -a "$LOG_FILE" >&2; }
+log_info()  { echo -e "${C_BLUE}[INFO]${C_RESET} $*" | tee -a "$LOG_FILE" >&2; }
+log_ok()    { echo -e "${C_GREEN}[OK]${C_RESET} $*" | tee -a "$LOG_FILE" >&2; }
+log_warn()  { echo -e "${C_YELLOW}[WARN]${C_RESET} $*" | tee -a "$LOG_FILE" >&2; }
+log_err()   { echo -e "${C_RED}[ERR]${C_RESET} $*" | tee -a "$LOG_FILE" >&2; }
 
 # ---------------------------------------------------------------------------
 # Fatal error
 # ---------------------------------------------------------------------------
 die() {
   log_err "$*"
-  _log_write "FATAL" "$*"
-  echo ""
-  echo "Log file: $LOG_FILE"
-  echo ""
+  echo "Log: $LOG_FILE" >&2
   exit 1
 }
 

@@ -26,7 +26,10 @@
 #       home-dotfiles.txt
 # =============================================================================
 
-set -euo pipefail
+# NOTE: NO set -e here. inspect is a data collector; one failed command
+# should not kill the entire scan. We check exits explicitly where needed.
+set -uo pipefail
+
 SCRIPT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 source "$SCRIPT_DIR/lib/common.sh"
 
