@@ -92,17 +92,70 @@ fi
 # Write YAML
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Disk layout discovery from lsblk output in inspect data
+# ---------------------------------------------------------------------------
+log_info "Discovering disk layout from inspect data..."
+
+# Parse lsblk output to find actual disk and partition names
+# lsblk -f output format: NAME SIZE FSTYPE FSVER MOUNTPOINT PARTUUID UUID
+_disk=""
+_efi_dev=""
+_root_dev=""
+
+if [[ -f "$INSPECT_DIR/storage.txt" ]]; then
+  # Extract the lsblk table
+  lsblk_data=$(awk '/=== BLOCK DEVICES ===/{flag=1;next}/^---/{flag=0}flag' "$INSPECT_DIR/storage.txt")
+
+  # Find BTRFS partition (the one with btrfs fstype)
+  _root_dev=$(echo "$lsblk_data" | awk '$3 == "btrfs" {print "/dev/" $1; exit}')
+
+  # Find vfat partition (EFI)
+  _efi_dev=$(echo "$lsblk_data" | awk '$3 == "vfat" {print "/dev/" $1; exit}')
+
+  # Infer parent disk from partition name
+  # vda5 -> /dev/vda, nvme0n1p2 -> /dev/nvme0n1
+  if [[ -n "$_root_dev" ]]; then
+    _part_name="${_root_dev##*/}"  # e.g. vda5 or nvme0n1p2
+    if [[ "$_part_name" =~ ^nvme ]]; then
+      _disk="/dev/${_part_name%p*}"  # nvme0n1p2 -> nvme0n1
+    else
+      _disk="/dev/${_part_name%%[0-9]*}"  # vda5 -> vda, sda1 -> sda
+    fi
+  elif [[ -n "$_efi_dev" ]]; then
+    _part_name="${_efi_dev##*/}"
+    if [[ "$_part_name" =~ ^nvme ]]; then
+      _disk="/dev/${_part_name%p*}"
+    else
+      _disk="/dev/${_part_name%%[0-9]*}"
+    fi
+  fi
+fi
+
+# Validate we found something
+if [[ -z "$_disk" || -z "$_root_dev" ]]; then
+  log_warn "Could not auto-detect disk layout from inspect data."
+  log_warn "Falling back to defaults — YOU MUST EDIT THE GENERATED PROFILE."
+  _disk="/dev/nvme0n1"
+  _efi_dev="/dev/nvme0n1p1"
+  _root_dev="/dev/nvme0n1p2"
+fi
+
+log_info "Detected disk: $_disk"
+log_info "Detected EFI: $_efi_dev"
+log_info "Detected root pool: $_root_dev"
+
 # Determine wipe strategy and storage layout based on BTRFS detection
 if [[ "$btrfs_detected" == true ]]; then
   wipe_strategy="subvol-reset"
   root_fstype="btrfs"
   root_preserve="true"
-  root_device="${btrfs_dev:-/dev/nvme0n1p2}"
+  root_device="${btrfs_dev:-$_root_dev}"
 else
   wipe_strategy="format-full"
   root_fstype="ext4"
   root_preserve="false"
-  root_device="/dev/nvme0n1p2"
+  root_device="$_root_dev"
 fi
 
 cat > "$YAML_OUT" <<EOF
@@ -126,12 +179,12 @@ gpu:
   opengl_vendor: AMD
 
 storage:
-  disk: /dev/nvme0n1
+  disk: $_disk
   wipe_strategy: $wipe_strategy
   purge_snapshots: true
   partitions:
     efi:
-      device: /dev/nvme0n1p1
+      device: $_efi_dev
       fstype: vfat
       mount: /efi
       preserve: true
