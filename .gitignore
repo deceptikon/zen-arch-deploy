@@ -1,0 +1,16 @@
+# Generated / machine-specific data
+profiles/*.yaml
+profiles/*.env
+!profiles/example.yaml
+inspect-out/
+inspect-*.tar.gz
+
+# VM test artifacts
+vm-test/*.img
+vm-test/*.iso
+vm-test/OVMF_VARS.fd
+
+# Editor backups
+*~
+*.swp
+*.swo
