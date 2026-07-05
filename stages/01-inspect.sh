@@ -285,14 +285,14 @@ log_ok "storage.txt written"
   echo "---"
   echo "=== PACKAGE FILE INTEGRITY (non-zero altered) ==="
   altered=""
-  if altered=$(pacman -Qkk 2>/dev/null | grep -v "0 altered files"); then
+  if command -v timeout &>/dev/null && altered=$(timeout 10 pacman -Qkk 2>/dev/null | grep -v "0 altered files"); then
     if [[ -n "$altered" ]]; then
       echo "$altered"
     else
       log_warn "No altered files detected"
     fi
   else
-    log_warn "pacman -Qkk failed — no local package database"
+    log_warn "pacman -Qkk failed or timed out — no local package database"
   fi
 } > "$OUTPUT_DIR/packages.txt"
 log_ok "packages.txt written"
@@ -368,17 +368,22 @@ log_ok "services.txt written"
 {
   echo "=== SETUID BINARIES ==="
   if command -v find &>/dev/null; then
-    find /usr/bin /usr/lib -perm -4000 ! -type d -exec ls -la {} \; || log_warn "Some paths in setuid search were inaccessible"
+    timeout 10 find /usr/bin -maxdepth 1 -perm -4000 ! -type d -exec ls -la {} \; 2>/dev/null || log_warn "find on /usr/bin timed out or failed"
+    timeout 10 find /usr/lib -maxdepth 2 -perm -4000 ! -type d -exec ls -la {} \; 2>/dev/null || log_warn "find on /usr/lib timed out or failed"
   else
     log_warn "find not available"
   fi
   echo "---"
   echo "=== ORPHANED SETUID ==="
-  find /usr/bin /usr/lib -perm -4000 ! -type d -print | while read -r f; do
-    if ! pacman -Qo "$f" &>/dev/null; then
-      echo "ORPHAN: $f"
-    fi
-  done
+  if command -v find &>/dev/null && command -v pacman &>/dev/null; then
+    timeout 10 find /usr/bin /usr/lib -maxdepth 2 -perm -4000 ! -type d -print 2>/dev/null | while read -r f; do
+      if ! pacman -Qo "$f" &>/dev/null; then
+        echo "ORPHAN: $f"
+      fi
+    done
+  else
+    echo "N/A — find or pacman not available"
+  fi
 } > "$OUTPUT_DIR/security/setuid.txt"
 
 if [[ -r /var/log/pacman.log ]]; then
