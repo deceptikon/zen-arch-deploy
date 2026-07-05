@@ -86,10 +86,13 @@ audit_setuid() {
 
   local orphans
   orphans=$(find "$mnt/usr/bin" "$mnt/usr/lib" -perm -4000 ! -type d | while read -r f; do
-    local rel="${f#$mnt}"
-    if ! pacman -Qo "$rel" &>/dev/null; then
-      echo "$rel"
-    fi
+local rel="${f#$mnt}"
+      local owner_info
+      if owner_info=$(pacman -Qo "$rel"); then
+        : # owned by a package, skip
+      else
+        echo "$rel"
+      fi
   done)
 
   if [[ -n "$orphans" ]]; then

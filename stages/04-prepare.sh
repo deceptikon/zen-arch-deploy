@@ -36,6 +36,7 @@ done
 
 [[ -n "$PROFILE" ]] || die "--profile is required"
 profile_load "$PROFILE"
+profile_validate
 
 require_root
 

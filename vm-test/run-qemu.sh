@@ -57,7 +57,8 @@ err()   { echo -e "${RED}[ERR]${RESET} $*"; }
 # Privilege helper: use sudo if not root
 SUDO=""
 if [[ $EUID -ne 0 ]]; then
-  if command -v sudo &>/dev/null; then
+  sudo_path=$(command -v sudo)
+if [[ -n "$sudo_path" ]]; then
     SUDO="sudo"
   else
     err "Root or sudo is required for disk creation."
@@ -111,11 +112,15 @@ done
 info "Checking prerequisites..."
 
 missing=()
-command -v qemu-system-x86_64 &>/dev/null || missing+=("qemu-system-x86_64 (package: qemu-full or qemu-base)")
+qemu_path=$(command -v qemu-system-x86_64)
+[[ -z "$qemu_path" ]] && missing+=("qemu-system-x86_64 (package: qemu-full or qemu-base)")
 [[ -f "$UEFI_CODE" ]]            || missing+=("OVMF UEFI firmware (package: edk2-ovmf)")
-command -v parted &>/dev/null    || missing+=("parted")
-command -v mkfs.vfat &>/dev/null || missing+=("dosfstools")
-command -v mkfs.btrfs &>/dev/null|| missing+=("btrfs-progs")
+parted_path=$(command -v parted)
+[[ -z "$parted_path" ]] && missing+=("parted")
+mkfs_vfat_path=$(command -v mkfs.vfat)
+[[ -z "$mkfs_vfat_path" ]] && missing+=("dosfstools")
+mkfs_btrfs_path=$(command -v mkfs.btrfs)
+[[ -z "$mkfs_btrfs_path" ]] && missing+=("btrfs-progs")
 
 if [[ ${#missing[@]} -gt 0 ]]; then
   err "Missing prerequisites:"
@@ -180,7 +185,8 @@ if [[ ! -f "$DISK_IMG" ]]; then
     ok "  p1 → FAT32 (Windows EFI)"
 
     # p3: Fake Windows OS (ntfs if available, else ext4)
-    if command -v mkfs.ntfs &>/dev/null; then
+    mkfs_ntfs_path=$(command -v mkfs.ntfs)
+    if [[ -n "$mkfs_ntfs_path" ]]; then
       $SUDO mkfs.ntfs -f -L "Windows" "${LOOP_DEV}p3"
       ok "  p3 → NTFS (Windows OS)"
     else

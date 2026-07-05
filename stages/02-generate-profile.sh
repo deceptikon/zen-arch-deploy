@@ -36,6 +36,10 @@ for req in hardware.txt storage.txt packages.txt services.txt; do
   fi
 done
 
+if ! inspect_validate "$INSPECT_DIR"; then
+  die "Inspect data validation failed. Run './stages/01-inspect.sh' first."
+fi
+
 PROFILE_NAME="my-machine"
 YAML_OUT="$OUT_DIR/${PROFILE_NAME}.yaml"
 ENV_OUT="$OUT_DIR/${PROFILE_NAME}.env"
@@ -45,7 +49,16 @@ log_info "Generating profile from $INSPECT_DIR"
 # ---------------------------------------------------------------------------
 # Extract values from inspect data
 # ---------------------------------------------------------------------------
-HOSTNAME="$(hostname)"
+if command -v hostname; then
+  HOSTNAME="$(hostname)"
+elif [[ -r /proc/sys/kernel/hostname ]]; then
+  HOSTNAME="$(cat /proc/sys/kernel/hostname)"
+elif [[ -r /etc/hostname ]]; then
+  HOSTNAME="$(cat /etc/hostname)"
+else
+  HOSTNAME="unknown"
+  log_warn "Cannot determine hostname — hostname command not found, /proc/sys/kernel/hostname not readable, /etc/hostname not readable. Using 'unknown'."
+fi
 
 # CPU vendor
 cpu_vendor="$(grep "Vendor ID" "$INSPECT_DIR/hardware.txt" | head -n1 | awk '{print $3}' | tr '[:upper:]' '[:lower:]')"

@@ -40,6 +40,7 @@ done
 
 [[ -n "$PROFILE" ]] || die "--profile is required"
 profile_load "$PROFILE"
+profile_validate
 
 require_root
 
@@ -76,32 +77,49 @@ if [[ "$DRY_RUN" == "true" ]]; then
   echo "Kernel:     $KERNEL_PKG"
   echo "Strategy:   $WIPE_STRATEGY"
   echo ""
+
+  # Gather subvolume names/mounts from profile
+  subvol_names=()
+  subvol_mounts=()
+  _si=0
+  while true; do
+    _nv="PROFILE_storage__partitions__root_pool__subvolumes__${_si}__name"
+    _n="${!_nv:-}"
+    [[ -n "$_n" ]] || break
+    _mv="PROFILE_storage__partitions__root_pool__subvolumes__${_si}__mount"
+    subvol_names+=("$_n")
+    subvol_mounts+=("${!_mv:-/}")
+    ((_si++))
+  done
+  EFI_MPOINT=$(profile_get_or_die "storage.partitions.efi.mount")
+
+  step=1
+  echo "Steps that would execute:"
+
+  # Wipe/format steps
   if [[ "$WIPE_STRATEGY" == "format-full" ]]; then
-    echo "Steps that would execute:"
-    echo "  1. mkfs.vfat $EFI_DEV"
-    echo "  2. mkfs.btrfs $ROOT_DEV"
-    echo "  3. create subvolumes (@, @home, @swap, @snapshots)"
-    echo "  4. mount subvolumes -> /mnt"
-    echo "  5. pacstrap base system"
-    echo "  6. generate fstab"
-    echo "  7. arch-chroot: timezone, locale, hostname"
-    echo "  8. mkinitcpio"
-    echo "  9. grub-install + grub-mkconfig"
+    printf "  %2d. mkfs.vfat %s\n" $step "$EFI_DEV";        ((step++))
+    printf "  %2d. mkfs.btrfs -f %s\n" $step "$ROOT_DEV";   ((step++))
+    printf "  %2d. create subvolumes: %s\n" $step "$(printf '%s' "${subvol_names[0]}"; for _i in "${!subvol_names[@]}"; do [[ $_i -gt 0 ]] && printf ', %s' "${subvol_names[$_i]}"; done)"; ((step++))
   else
-    echo "Steps that would execute:"
-    echo "  1. mount $ROOT_DEV -> /mnt (top-level)"
-    echo "  2. btrfs subvolume delete @ (or rename to @.bak-*)"
-    echo "  3. btrfs subvolume create @"
-    echo "  4. mount @ -> /mnt"
-    echo "  5. mount @home -> /mnt/home"
-    echo "  6. mount @swap -> /mnt/.swap"
-    echo "  7. mount $EFI_DEV -> /mnt/efi"
-    echo "  8. pacstrap base system"
-    echo "  9. generate fstab"
-    echo " 10. arch-chroot: timezone, locale, hostname"
-    echo " 11. mkinitcpio"
-    echo " 12. grub-install + grub-mkconfig"
+    printf "  %2d. btrfs subvolume delete @ (or rename to @.bak-*)\n" $step; ((step++))
+    printf "  %2d. btrfs subvolume create @\n" $step;        ((step++))
   fi
+
+  # Mount steps from profile
+  for _i in "${!subvol_names[@]}"; do
+    printf "  %2d. mount %s -> /mnt%s\n" $step "${subvol_names[$_i]}" "${subvol_mounts[$_i]}"
+    ((step++))
+  done
+  printf "  %2d. mount %s -> /mnt%s\n" $step "$EFI_DEV" "$EFI_MPOINT"; ((step++))
+
+  # Common steps
+  printf "  %2d. pacstrap base system\n" $step; ((step++))
+  printf "  %2d. generate fstab\n"          $step; ((step++))
+  printf "  %2d. arch-chroot: timezone, locale, hostname\n" $step; ((step++))
+  printf "  %2d. mkinitcpio\n"              $step; ((step++))
+  printf "  %2d. grub-install + grub-mkconfig\n" $step; ((step++))
+
   echo ""
   log_ok "Dry-run preview complete."
   exit 0
@@ -251,13 +269,11 @@ run arch-chroot /mnt grub-install \
 
 # Enable os-prober for Windows dual-boot
 if [[ -f /mnt/etc/default/grub ]]; then
-  if [[ -f /mnt/etc/default/grub ]]; then
-    if ! sed -i 's/^#*GRUB_DISABLE_OS_PROBER=.*/GRUB_DISABLE_OS_PROBER=false/' /mnt/etc/default/grub; then
-      log_warn "Failed to update GRUB_DISABLE_OS_PROBER in /mnt/etc/default/grub"
-    fi
-  else
-    log_warn "/mnt/etc/default/grub not found — cannot enable os-prober"
+  if ! sed -i 's/^#*GRUB_DISABLE_OS_PROBER=.*/GRUB_DISABLE_OS_PROBER=false/' /mnt/etc/default/grub; then
+    log_warn "Failed to update GRUB_DISABLE_OS_PROBER in /mnt/etc/default/grub"
   fi
+else
+  log_warn "/mnt/etc/default/grub not found — cannot enable os-prober"
 fi
 
 run arch-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg

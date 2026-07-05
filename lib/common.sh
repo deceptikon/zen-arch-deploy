@@ -129,33 +129,9 @@ require_root() {
 }
 
 require_command() {
-  command -v "$1" &>/dev/null || die "Required command not found: $1"
-}
-
-# ---------------------------------------------------------------------------
-# Profile loader
-# ---------------------------------------------------------------------------
-PROFILE="${ARCH_DEPLOY_PROFILE:-}"
-PROFILE_DIR=""
-PROFILE_NAME=""
-
-load_profile() {
-  if [[ -z "$PROFILE" ]]; then
-    # Allow stages to set it themselves
-    return 0
-  fi
-
-  [[ -f "$PROFILE" ]] || die "Profile not found: $PROFILE"
-
-  PROFILE_DIR=$(cd "$(dirname "$PROFILE")" && pwd)
-  PROFILE_NAME=$(basename "$PROFILE" .yaml)
-
-  # If a companion .env exists, source it for fast access
-  local envfile="$PROFILE_DIR/${PROFILE_NAME}.env"
-  if [[ -f "$envfile" ]]; then
-    # shellcheck source=/dev/null
-    source "$envfile"
-  fi
+  local cmd_path
+  cmd_path=$(command -v "$1")
+  [[ -n "$cmd_path" ]] || die "Required command not found: $1"
 }
 
 # ---------------------------------------------------------------------------

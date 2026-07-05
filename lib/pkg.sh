@@ -40,7 +40,9 @@ install_aur_packages() {
   run pacman -S --needed --noconfirm git base-devel
 
   # Create a temporary build user if not exists
-  if ! id "$build_user" &>/dev/null; then
+  if id "$build_user"; then
+    log_info "Build user $build_user already exists"
+  else
     run useradd -m -G wheel "$build_user"
     echo "$build_user ALL=(ALL) NOPASSWD: ALL" > "$mnt/etc/sudoers.d/99-${build_user}"
   fi

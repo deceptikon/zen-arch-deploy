@@ -34,6 +34,7 @@ done
 
 [[ -n "$PROFILE" ]] || die "--profile is required"
 profile_load "$PROFILE"
+profile_validate
 
 log_info "╔═══════════════════════════════════════════════════════════════╗"
 log_info "║          STAGE 07: VERIFY                                     ║"
@@ -70,7 +71,8 @@ fi
 log_info "Checking enabled services..."
 EXPECTED_SVCS=(NetworkManager sddm systemd-timesyncd bluetooth)
 for svc in "${EXPECTED_SVCS[@]}"; do
-  if systemctl is-enabled "$svc" &>/dev/null; then
+  local enabled_out
+  if enabled_out=$(systemctl is-enabled "$svc"); then
     log_ok "Service enabled: $svc"
   else
     log_warn "Service NOT enabled: $svc"
@@ -83,11 +85,12 @@ done
 log_info "Checking kernel..."
 KERNEL_PKG="$(profile_get_or_die "kernel.pkg")"
 INSTALLED_KERNEL="$(uname -r | sed 's/-arch.*//')"
-if pacman -Q "$KERNEL_PKG" &>/dev/null; then
-  log_ok "Kernel package installed: $KERNEL_PKG"
-else
-  log_warn "Kernel package not found: $KERNEL_PKG"
-fi
+local pkg_out
+  if pkg_out=$(pacman -Q "$KERNEL_PKG"); then
+    log_ok "Kernel package installed: $KERNEL_PKG"
+  else
+    log_warn "Kernel package not found: $KERNEL_PKG"
+  fi
 
 # ---------------------------------------------------------------------------
 # 4. Verify swap / resume

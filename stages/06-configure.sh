@@ -42,6 +42,7 @@ done
 
 [[ -n "$PROFILE" ]] || die "--profile is required"
 profile_load "$PROFILE"
+profile_validate
 
 require_root
 
@@ -63,14 +64,14 @@ if [[ -z "$USERNAME" ]]; then
   read -rp "Enter username for primary account: " USERNAME
 fi
 
-if ! id "$USERNAME" &>/dev/null; then
-  log_info "Creating user: $USERNAME"
-  run useradd -m -G wheel,audio,video,input,storage,power,docker -s /bin/zsh "$USERNAME"
-  log_warn "Set password for $USERNAME:"
-  run passwd "$USERNAME"
-else
-  log_info "User $USERNAME already exists."
-fi
+if id "$USERNAME"; then
+    log_info "User $USERNAME already exists."
+  else
+    log_info "Creating user: $USERNAME"
+    run useradd -m -G wheel,audio,video,input,storage,power,docker -s /bin/zsh "$USERNAME"
+    log_warn "Set password for $USERNAME:"
+    run passwd "$USERNAME"
+  fi
 
 # Sudoers
 if [[ ! -f /etc/sudoers.d/99-wheel ]]; then
@@ -89,10 +90,14 @@ run pacman -S --needed --noconfirm git base-devel
 # ---------------------------------------------------------------------------
 BUILD_USER="aurbuilder"
 
-if ! command -v yay &>/dev/null; then
+local yay_path
+  yay_path=$(command -v yay)
+  if [[ -z "$yay_path" ]]; then
   log_info "Installing yay (AUR helper)..."
 
-  if ! id "$BUILD_USER" &>/dev/null; then
+  if id "$BUILD_USER"; then
+    log_info "Build user $BUILD_USER already exists"
+  else
     run useradd -m -G wheel "$BUILD_USER"
     echo "$BUILD_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-${BUILD_USER}
   fi
@@ -158,7 +163,9 @@ if [[ -n "$DOTFILES_REPO" ]]; then
   log_info "Deploying dotfiles with $DOTFILES_MANAGER..."
 
   if [[ "$DOTFILES_MANAGER" == "chezmoi" ]]; then
-    if ! command -v chezmoi &>/dev/null; then
+    local chezmoi_path
+    chezmoi_path=$(command -v chezmoi)
+    if [[ -z "$chezmoi_path" ]]; then
       run pacman -S --needed --noconfirm chezmoi
     fi
 
@@ -218,7 +225,9 @@ run mkdir -p "/run/user/$(id -u "$USERNAME")"
 # ---------------------------------------------------------------------------
 # 9. Final pacman hooks for timeshift snapshots on upgrade
 # ---------------------------------------------------------------------------
-if command -v timeshift-autosnap &>/dev/null; then
+local tsnap_path
+  tsnap_path=$(command -v timeshift-autosnap)
+  if [[ -n "$tsnap_path" ]]; then
   log_info "timeshift-autosnap is installed. It will create snapshots before upgrades."
 fi
 
