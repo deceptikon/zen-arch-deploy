@@ -9,7 +9,9 @@
 #   ./stages/02-generate-profile.sh [--inspect-dir DIR] [--out-dir DIR]
 # =============================================================================
 
-set -euo pipefail
+# NOTE: NO set -e. generate-profile is a config generator; missing data
+# should produce defaults, not crash the pipeline.
+set -uo pipefail
 SCRIPT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 source "$SCRIPT_DIR/lib/common.sh"
 
@@ -46,24 +48,33 @@ log_info "Generating profile from $INSPECT_DIR"
 HOSTNAME="$(hostname 2>/dev/null || echo archbox)"
 
 # CPU vendor
-cpu_vendor="$(grep "Vendor ID" "$INSPECT_DIR/hardware.txt" | head -n1 | awk '{print $3}' | tr '[:upper:]' '[:lower:]')"
+cpu_vendor="$(grep "Vendor ID" "$INSPECT_DIR/hardware.txt" 2>/dev/null | head -n1 | awk '{print $3}' | tr '[:upper:]' '[:lower:]' || true)"
 [[ "$cpu_vendor" == *"amd"* ]] && UCODE="amd-ucode" || UCODE="intel-ucode"
 
-# Kernel
-kernel_pkg="$(grep -oP 'vmlinuz-\K[^ ]+' "$INSPECT_DIR/storage.txt" | head -n1 | sed 's/^vmlinuz-//')"
+# Kernel (from /proc/cmdline in inspect output)
+kernel_pkg=""
+if grep -q "vmlinuz-" "$INSPECT_DIR/storage.txt" 2>/dev/null; then
+  kernel_pkg="$(grep -oP 'vmlinuz-\K[^ ]+' "$INSPECT_DIR/storage.txt" | head -n1 | sed 's/^vmlinuz-//' || true)"
+fi
 [[ -z "$kernel_pkg" ]] && kernel_pkg="linux-zen"
 
-# Root partition UUID
-root_part_uuid="$(grep "root=UUID" "$INSPECT_DIR/storage.txt" | grep -oP 'root=UUID=\K[^ ]+' | head -n1)"
+# Root partition UUID (from cmdline in inspect output)
+root_part_uuid=""
+if grep -q "root=UUID" "$INSPECT_DIR/storage.txt" 2>/dev/null; then
+  root_part_uuid="$(grep "root=UUID" "$INSPECT_DIR/storage.txt" | grep -oP 'root=UUID=\K[^ ]+' | head -n1 || true)"
+fi
 
-# Resume offset
-resume_offset="$(grep -oP 'resume_offset=\K[0-9]+' "$INSPECT_DIR/storage.txt" | head -n1)"
+# Resume offset (from cmdline in inspect output)
+resume_offset=""
+if grep -q "resume_offset=" "$INSPECT_DIR/storage.txt" 2>/dev/null; then
+  resume_offset="$(grep -oP 'resume_offset=\K[0-9]+' "$INSPECT_DIR/storage.txt" | head -n1 || true)"
+fi
 
 # BTRFS detection from inspect output
 if grep -q "=== BTRFS DETECTED: YES ===" "$INSPECT_DIR/storage.txt" 2>/dev/null; then
   btrfs_detected=true
   # Try to extract the BTRFS device from inspect output
-  btrfs_dev="$(grep "^=== BTRFS DEVICE:" "$INSPECT_DIR/storage.txt" | head -n1 | awk '{print $4}')"
+  btrfs_dev="$(grep "^=== BTRFS DEVICE:" "$INSPECT_DIR/storage.txt" 2>/dev/null | head -n1 | awk '{print $4}' || true)"
   log_info "BTRFS detected on device: ${btrfs_dev:-unknown}"
 else
   btrfs_detected=false
