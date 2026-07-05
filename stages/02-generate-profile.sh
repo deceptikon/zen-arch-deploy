@@ -122,14 +122,23 @@ _efi_dev=""
 _root_dev=""
 
 if [[ -f "$INSPECT_DIR/storage.txt" ]]; then
-  # Extract the lsblk table
+  # Extract the lsblk table (raw format: pipe-separated, no tree chars)
   lsblk_data=$(awk '/=== BLOCK DEVICES ===/{flag=1;next}/^---/{flag=0}flag' "$INSPECT_DIR/storage.txt")
 
-  # Find BTRFS partition (the one with btrfs fstype)
-  _root_dev=$(echo "$lsblk_data" | awk '$3 == "btrfs" {print "/dev/" $1; exit}')
+  # Find BTRFS partition (field 3 = FSTYPE in NAME|SIZE|FSTYPE|... format)
+  _root_dev=$(echo "$lsblk_data" | awk -F'|' '$3 == "btrfs" {print "/dev/" $1; exit}')
 
   # Find vfat partition (EFI)
-  _efi_dev=$(echo "$lsblk_data" | awk '$3 == "vfat" {print "/dev/" $1; exit}')
+  _efi_dev=$(echo "$lsblk_data" | awk -F'|' '$3 == "vfat" {print "/dev/" $1; exit}')
+
+  # Fallback: if raw format didn't match, try old tree format
+  # Tree format: lsblk -f outputs NAME FSTYPE SIZE → FSTYPE is $2
+  if [[ -z "$_root_dev" ]]; then
+    _root_dev=$(echo "$lsblk_data" | sed 's/^[├└─| ]*//' | awk '$2 == "btrfs" {print "/dev/" $1; exit}')
+  fi
+  if [[ -z "$_efi_dev" ]]; then
+    _efi_dev=$(echo "$lsblk_data" | sed 's/^[├└─| ]*//' | awk '$2 == "vfat" {print "/dev/" $1; exit}')
+  fi
 
   # Infer parent disk from partition name
   # vda5 -> /dev/vda, nvme0n1p2 -> /dev/nvme0n1

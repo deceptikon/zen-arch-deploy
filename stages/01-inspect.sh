@@ -219,7 +219,12 @@ btrfs_inspect_device() {
 
 {
   echo "=== BLOCK DEVICES ==="
-  lsblk -f -o NAME,SIZE,FSTYPE,FSVER,MOUNTPOINT,PARTUUID,UUID
+  # Use --noheadings --raw to get clean pipe-separated output without tree chars
+  if lsblk -f -o NAME,SIZE,FSTYPE,FSVER,MOUNTPOINT,PARTUUID,UUID --noheadings --raw &>/dev/null; then
+    lsblk -f -o NAME,SIZE,FSTYPE,FSVER,MOUNTPOINT,PARTUUID,UUID --noheadings --raw
+  else
+    lsblk -f --noheadings --raw 2>/dev/null || lsblk --raw 2>/dev/null || echo "N/A — lsblk failed"
+  fi
   echo "---"
 
   if btrfs_discover; then
