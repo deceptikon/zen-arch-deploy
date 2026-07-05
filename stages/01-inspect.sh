@@ -37,6 +37,14 @@ mkdir -p "$OUTPUT_DIR/security" "$OUTPUT_DIR/dotfiles"
 
 log_info "Starting deep inspection. Output: $OUTPUT_DIR"
 
+# Detect if running from Arch ISO
+if [[ -f /run/archiso/bootmnt/arch/pkglist.x86_64.txt ]]; then
+  log_warn "Detected Arch ISO environment. Some inspect features will be limited."
+  log_warn "  - No pacman package database (pacman -Q will fail)"
+  log_warn "  - Root filesystem is overlayfs, not your target disk"
+  log_warn "  - Disk layout discovery should still work via lsblk/blkid"
+fi
+
 # ---------------------------------------------------------------------------
 # Hardware
 # ---------------------------------------------------------------------------

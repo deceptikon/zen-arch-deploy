@@ -27,6 +27,13 @@ done
 [[ -d "$INSPECT_DIR" ]] || die "Inspect directory not found: $INSPECT_DIR"
 mkdir -p "$OUT_DIR"
 
+# Verify required inspect output files exist
+for req in hardware.txt storage.txt packages.txt services.txt; do
+  if [[ ! -f "$INSPECT_DIR/$req" ]]; then
+    die "Missing inspect output file: $INSPECT_DIR/$req\nRun './stages/01-inspect.sh' first."
+  fi
+done
+
 PROFILE_NAME="my-machine"
 YAML_OUT="$OUT_DIR/${PROFILE_NAME}.yaml"
 ENV_OUT="$OUT_DIR/${PROFILE_NAME}.env"
@@ -365,4 +372,17 @@ PYEOF
 
 log_ok "Environment file written: $ENV_OUT"
 log_info "Profile generation complete."
+
+echo ""
+echo "═══════════════════════════════════════════════════════════════════"
+echo "  GENERATED PROFILE: $YAML_OUT"
+echo "═══════════════════════════════════════════════════════════════════"
+cat "$YAML_OUT"
+echo ""
+echo "═══════════════════════════════════════════════════════════════════"
+echo "  GENERATED ENV: $ENV_OUT"
+echo "═══════════════════════════════════════════════════════════════════"
+head -20 "$ENV_OUT"
+echo "... ($(wc -l < "$ENV_OUT") lines total)"
+echo ""
 log_warn "IMPORTANT: Edit $YAML_OUT and set dotfiles.repo before running configure stage!"
