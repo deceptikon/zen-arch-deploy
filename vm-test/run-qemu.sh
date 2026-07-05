@@ -188,14 +188,14 @@ if [[ ! -f "$DISK_IMG" ]]; then
   ok "  p5 → BTRFS (Arch root pool)"
 
   info "Creating BTRFS subvolumes (@, @home, @swap, @snapshots)..."
-  $SUDO mkdir -p /tmp/zenbook-btrfs
-  $SUDO mount "${LOOP_DEV}p5" /tmp/zenbook-btrfs
-  $SUDO btrfs subvolume create /tmp/zenbook-btrfs/@
-  $SUDO btrfs subvolume create /tmp/zenbook-btrfs/@home
-  $SUDO btrfs subvolume create /tmp/zenbook-btrfs/@swap
-  $SUDO btrfs subvolume create /tmp/zenbook-btrfs/@snapshots
-  $SUDO umount /tmp/zenbook-btrfs
-  $SUDO rmdir /tmp/zenbook-btrfs
+  TMPMNT=$(mktemp -d /dev/shm/zenbook-btrfs.XXXXXX)
+  $SUDO mount "${LOOP_DEV}p5" "$TMPMNT"
+  $SUDO btrfs subvolume create "$TMPMNT"/@
+  $SUDO btrfs subvolume create "$TMPMNT"/@home
+  $SUDO btrfs subvolume create "$TMPMNT"/@swap
+  $SUDO btrfs subvolume create "$TMPMNT"/@snapshots
+  $SUDO umount "$TMPMNT"
+  $SUDO rmdir "$TMPMNT"
   ok "Subvolumes created."
 
   $SUDO losetup -d "$LOOP_DEV"
@@ -205,6 +205,12 @@ if [[ ! -f "$DISK_IMG" ]]; then
   ok "Virtual disk ready!"
   echo ""
 fi
+
+# ---------------------------------------------------------------------------
+# Prepare shared directory for 9p VirtFS
+# ---------------------------------------------------------------------------
+mkdir -p "${SCRIPT_DIR}/shared"
+ok "Shared directory ready: ${SCRIPT_DIR}/shared"
 
 # ---------------------------------------------------------------------------
 # Prepare UEFI vars (fresh copy for clean NVRAM)
@@ -256,10 +262,13 @@ QEMU_ARGS=(
   -drive if=pflash,format=raw,readonly=on,file="$UEFI_CODE"
   -drive if=pflash,format=raw,file="$UEFI_VARS"
   -drive if=virtio,format=raw,file="$DISK_IMG"
-  -netdev user,id=net0 -device virtio-net-pci,netdev=net0
+  -netdev user,id=net0,hostfwd=tcp::2222-:22 -device virtio-net-pci,netdev=net0
   -usb -device usb-tablet
   -vga virtio
   -display sdl,gl=on
+  # 9p VirtFS — share vm-test/shared with VM
+  # Inside VM: mkdir -p /mnt/shared && mount -t 9p -o trans=virtio hostshare /mnt/shared
+  -virtfs local,path=${SCRIPT_DIR}/shared,mount_tag=hostshare,security_model=none,multidevs=remap
 )
 
 if [[ -f "$ISO" ]]; then

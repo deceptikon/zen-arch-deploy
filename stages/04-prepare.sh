@@ -61,9 +61,17 @@ log_info "Checking network connectivity..."
 if ping -c 1 -W 3 archlinux.org &>/dev/null; then
   log_ok "Network OK"
 else
-  log_warn "No network. Attempting DHCP..."
-  run dhcpcd || log_warn "dhcpcd failed (network may already be configured)"
-  sleep 2
+  log_warn "No network. Attempting DHCP via systemd-networkd..."
+  # Modern Arch ISO uses systemd-networkd, not dhcpcd
+  if command -v networkctl &>/dev/null; then
+    run systemctl start systemd-networkd || log_warn "systemd-networkd start failed"
+    sleep 3
+  elif command -v dhcpcd &>/dev/null; then
+    run dhcpcd || log_warn "dhcpcd failed (network may already be configured)"
+    sleep 2
+  else
+    log_warn "No DHCP client found (systemd-networkd or dhcpcd)"
+  fi
   ping -c 1 -W 3 archlinux.org &>/dev/null || die "Network unreachable. Fix before proceeding."
 fi
 

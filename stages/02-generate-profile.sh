@@ -159,13 +159,15 @@ if [[ -f "$INSPECT_DIR/storage.txt" ]]; then
   fi
 fi
 
-# Validate we found something
+# Validate we found something — do NOT hardcode device names; use empty string
+# so the profile explicitly flags manual review needed rather than silently
+# inserting a broken /dev/nvme0n1* path on a virtio/sata host.
 if [[ -z "$_disk" || -z "$_root_dev" ]]; then
   log_warn "Could not auto-detect disk layout from inspect data."
   log_warn "Falling back to defaults — YOU MUST EDIT THE GENERATED PROFILE."
-  _disk="/dev/nvme0n1"
-  _efi_dev="/dev/nvme0n1p1"
-  _root_dev="/dev/nvme0n1p2"
+  _disk="<DISK_DEVICE>"
+  _efi_dev="<EFI_PARTITION>"
+  _root_dev="<ROOT_PARTITION>"
 fi
 
 log_info "Detected disk: $_disk"
