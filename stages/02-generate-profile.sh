@@ -400,6 +400,13 @@ PYEOF
 log_ok "Environment file written: $ENV_OUT"
 log_info "Profile generation complete."
 
+# ---------------------------------------------------------------------------
+# Boundary Validation
+# ---------------------------------------------------------------------------
+log_info "Validating generated profile boundaries..."
+profile_load "$YAML_OUT"
+profile_validate
+
 echo ""
 echo "═══════════════════════════════════════════════════════════════════"
 echo "  GENERATED PROFILE: $YAML_OUT"

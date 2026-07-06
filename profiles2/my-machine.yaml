@@ -1,0 +1,256 @@
+# =============================================================================
+# Profile: my-machine
+# Auto-generated from inspect data on 2026-07-06T03:30:43+00:00
+# =============================================================================
+
+machine:
+  id: my-machine
+  hostname: archiso
+  uefi: true
+  secure_boot: disabled
+
+cpu:
+  vendor: authenticamd
+  ucode_pkg: amd-ucode
+
+gpu:
+  driver: amdgpu
+  opengl_vendor: AMD
+
+storage:
+  disk: <DISK_DEVICE>
+  wipe_strategy: format-full
+  purge_snapshots: true
+  partitions:
+    efi:
+      device: <EFI_PARTITION>
+      fstype: vfat
+      mount: /efi
+      preserve: true
+    root_pool:
+      device: <ROOT_PARTITION>
+      fstype: ext4
+      preserve: false
+      subvolumes:
+
+bootloader:
+  type: grub
+  target: x86_64-efi
+  efi_directory: /efi
+  bootloader_id: ARCHLINUX
+  os_prober: true
+
+kernel:
+  pkg: linux-zen
+  cmdline: "rw rootflags=subvol=@ loglevel=3 quiet resume=UUID= resume_offset= rtc_cmos.use_acpi_alarm=1"
+  hooks:
+    - base
+    - systemd
+    - autodetect
+    - microcode
+    - modconf
+    - kms
+    - keyboard
+    - keymap
+    - sd-vconsole
+    - block
+    - resume
+    - filesystems
+    - fsck
+
+software:
+  base_packages:
+    - ---
+    - alsa-utils
+    - amd-ucode
+    - arch-install-scripts
+    - archinstall
+    - b43-fwcutter
+    - base
+    - bcachefs-tools
+    - bind
+    - bolt
+    - brltty
+    - broadcom-wl
+    - btrfs-progs
+    - clonezilla
+    - cloud-init
+    - cryptsetup
+    - darkhttpd
+    - ddrescue
+    - dhcpcd
+    - diffutils
+    - dmidecode
+    - dmraid
+    - dnsmasq
+    - dosfstools
+    - e2fsprogs
+    - edk2-shell
+    - efibootmgr
+    - espeakup
+    - ethtool
+    - exfatprogs
+    - f2fs-tools
+    - fatresize
+    - foot-terminfo
+    - fsarchiver
+    - gpart
+    - gpm
+    - gptfdisk
+    - grml-zsh-config
+    - grub
+    - hdparm
+    - hyperv
+    - intel-ucode
+    - irssi
+    - iw
+    - iwd
+    - jfsutils
+    - kitty-terminfo
+    - ldns
+    - less
+    - lftp
+    - libfido2
+    - libusb-compat
+    - linux
+    - linux-atm
+    - linux-firmware
+    - linux-firmware-marvell
+    - livecd-sounds
+    - lsscsi
+    - lvm2
+    - lynx
+    - man-db
+    - man-pages
+    - mc
+    - mdadm
+    - memtest86+
+    - memtest86+-efi
+    - mkinitcpio
+    - mkinitcpio-archiso
+    - mkinitcpio-nfs-utils
+    - mmc-utils
+    - modemmanager
+    - mtools
+    - nano
+    - nbd
+    - ndisc6
+    - nfs-utils
+    - nilfs-utils
+    - nmap
+    - ntfs-3g
+    - nvme-cli
+    - open-iscsi
+    - open-vm-tools
+    - openconnect
+    - openpgp-card-tools
+    - openssh
+    - openvpn
+    - partclone
+    - parted
+    - partimage
+    - pcsclite
+    - ppp
+    - pptpclient
+    - pv
+    - qemu-guest-agent
+    - refind
+    - reflector
+    - rsync
+    - rxvt-unicode-terminfo
+    - screen
+    - sdparm
+    - sequoia-sq
+    - sg3_utils
+    - smartmontools
+    - sof-firmware
+    - squashfs-tools
+    - sudo
+    - syslinux
+    - systemd-resolvconf
+    - tcpdump
+    - terminus-font
+    - testdisk
+    - tmux
+    - tpm2-tools
+    - tpm2-tss
+    - udftools
+    - usb_modeswitch
+    - usbmuxd
+    - usbutils
+    - vim
+    - virtualbox-guest-utils-nox
+    - vpnc
+    - wireless-regdb
+    - wireless_tools
+    - wpa_supplicant
+    - wvdial
+    - xdg-utils
+    - xfsprogs
+    - xl2tpd
+    - zsh
+
+  aur_packages:
+    - yay
+    - zsh-antidote
+
+  services:
+    system:
+      - ModemManager
+      - choose-mirror
+      - cloud-config
+      - cloud-final
+      - cloud-init-local
+      - cloud-init-main
+      - cloud-init-network
+      - getty@
+      - hv_kvp_daemon
+      - hv_vss_daemon
+      - iwd
+      - livecd-alsa-unmuter
+      - livecd-talk
+      - pacman-init
+      - sshd
+      - systemd-boot-clear-sysfail
+      - systemd-boot-update
+      - systemd-confext
+      - systemd-homed
+      - systemd-homed-activate
+      - systemd-network-generator
+      - systemd-networkd
+      - systemd-networkd-wait-online
+      - systemd-pstore
+      - systemd-resolved
+      - systemd-sysext
+      - systemd-time-wait-sync
+      - systemd-timesyncd
+      - systemd-tpm2-clear
+      - vboxservice
+      - vmtoolsd
+      - vmware-vmblock-fuse
+
+  aur_helper: yay
+
+desktop:
+  session: sway
+  display_manager: sddm
+  scale: 1.5
+  output: eDP-1
+  resolution: 2880x1800
+  refresh_rate: 120
+
+dotfiles:
+  manager: chezmoi
+  repo: ""
+  branch: main
+
+security:
+  known_hashes:
+  - path: "/usr/bin/sudo"
+    sha256: "e9f8a0d0b52fff1391dbde8fbd2c14a010a1b4daa338e948a9f2e217de84e689"
+  - path: "/usr/bin/login"
+    sha256: "1bd9af3ce4ce3d3e30962936a94c8e948895a53487c7d6f3a6fa90e2f529fe5f"
+  - path: "/usr/bin/pacman"
+    sha256: "bef41dfdb55bf620aa6d5b50a657b6d04b894d1b48da7d447a9d23a29ff66478"
+  - path: "/usr/lib/systemd/systemd"
+    sha256: "de79adab851d295b6a6d403d03552bf16f0f51642f4f7da07bf0e9c139719953"

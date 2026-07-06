@@ -32,6 +32,7 @@ set -uo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 source "$SCRIPT_DIR/lib/common.sh"
+source "$SCRIPT_DIR/lib/profile.sh"
 
 OUTPUT_DIR="${1:-./inspect-out}"
 [[ "$OUTPUT_DIR" == --output ]] && OUTPUT_DIR="${2:-./inspect-out}"
@@ -525,5 +526,11 @@ log_ok "Dotfiles inventory written"
 # ---------------------------------------------------------------------------
 tar czf "inspect-$(date +%Y%m%d_%H%M%S).tar.gz" -C "$(dirname "$OUTPUT_DIR")" "$(basename "$OUTPUT_DIR")"
 log_ok "Inspection complete. Archive created."
+
+if ! inspect_validate "$OUTPUT_DIR"; then
+  log_err "Boundary validation failed: inspection data is incomplete."
+  exit 1
+fi
+
 log_info "Inspect output: $OUTPUT_DIR"
 log_info "Log file: $LOG_FILE"

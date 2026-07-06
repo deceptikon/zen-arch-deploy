@@ -1,0 +1,242 @@
+# =============================================================================
+# Profile: ASUS Zenbook 14 UM3406KA (Fresh Install)
+# Same as zenbook-vm.yaml but with wipe_strategy: format-full
+# Use this for testing first-install path on a raw VM disk.
+#
+# Workflow:
+#   1. ./vm-test/run-qemu.sh                    # creates raw disk
+#   2. Inside VM: ./arch-deploy.sh --profile profiles/zenbook-vm-fresh.yaml execute
+#   3. Reboot, verify boot works
+#   4. For reinstall test, switch to zenbook-vm.yaml (subvol-reset) and re-run
+# =============================================================================
+
+machine:
+  id: zenbook-um3406ka-fresh
+  hostname: zenbook
+  uefi: true
+  secure_boot: disabled
+
+cpu:
+  vendor: amd
+  ucode_pkg: amd-ucode
+
+gpu:
+  driver: amdgpu
+  opengl_vendor: AMD
+
+storage:
+  disk: /dev/vda
+  wipe_strategy: format-full
+  purge_snapshots: true
+  partitions:
+    efi:
+      device: /dev/vda4
+      fstype: vfat
+      mount: /efi
+      preserve: true
+    root_pool:
+      device: /dev/vda5
+      fstype: btrfs
+      preserve: false
+      subvolumes:
+        - name: "@"
+          mount: "/"
+          reset: true
+          options: ""
+        - name: "@home"
+          mount: "/home"
+          reset: false
+          options: ""
+        - name: "@swap"
+          mount: "/.swap"
+          reset: false
+          options: "nodatacow,compress=no"
+        - name: "@snapshots"
+          mount: "/.snapshots"
+          reset: true
+          options: ""
+
+bootloader:
+  type: grub
+  target: x86_64-efi
+  efi_directory: /efi
+  bootloader_id: ARCHLINUX
+  os_prober: true
+
+kernel:
+  pkg: linux-zen
+  cmdline: "rw rootflags=subvol=@ loglevel=3 quiet resume=UUID=bc5635fd-1f9c-4b32-a447-55acf4b67fb0 resume_offset=10114688 rtc_cmos.use_acpi_alarm=1"
+  hooks:
+    - base
+    - systemd
+    - autodetect
+    - microcode
+    - modconf
+    - kms
+    - keyboard
+    - keymap
+    - sd-vconsole
+    - block
+    - resume
+    - filesystems
+    - fsck
+
+software:
+  base_packages:
+    # --- Base + Boot ---
+    - base
+    - base-devel
+    - linux-zen
+    - linux-zen-headers
+    - amd-ucode
+    - grub
+    - efibootmgr
+    - os-prober
+    - grub-btrfs
+    - inotify-tools
+    - mkinitcpio
+    # --- BTRFS + Storage ---
+    - btrfs-progs
+    - timeshift
+    # --- Network ---
+    - networkmanager
+    - iwd
+    - wireguard-tools
+    - openssh
+    # --- Audio ---
+    - pipewire
+    - pipewire-alsa
+    - pipewire-pulse
+    - pipewire-jack
+    - wireplumber
+    - pamixer
+    # --- Bluetooth ---
+    - bluez
+    - bluez-utils
+    # --- Power / Laptop ---
+    - tlp
+    - acpi_call
+    - brightnessctl
+    - upower
+    # --- Sway / Wayland core ---
+    - sway
+    - swaybg
+    - swayidle
+    - swaylock
+    - wlroots
+    - wayland
+    - wayland-protocols
+    - xorg-xwayland
+    # --- Display manager ---
+    - sddm
+    # --- Terminal ---
+    - ghostty
+    - foot
+    # --- Launcher / Bar ---
+    - waybar
+    - rofi-wayland
+    - wofi
+    # --- Notifications ---
+    - dunst
+    - libnotify
+    # --- File manager ---
+    - thunar
+    - gvfs
+    - udiskie
+    # --- Fonts ---
+    - terminus-font
+    - ttf-terminus-nerd
+    - noto-fonts
+    - noto-fonts-emoji
+    # --- Themes / Cursors ---
+    - capitaine-cursors
+    - vimix-cursors
+    - xcursor-themes
+    - xcursor-vanilla-dmz-aa
+    # --- Shell / Tools ---
+    - zsh
+    - zsh-completions
+    - git
+    - vim
+    - neovim
+    - htop
+    - btop
+    - mc
+    - ranger
+    - ripgrep
+    - fd
+    - fzf
+    - bat
+    - eza
+    - zoxide
+    - tmux
+    # --- Browsers ---
+    - firefox
+    # --- Media ---
+    - mpv
+    - imv
+    - grim
+    - slurp
+    - wl-clipboard
+    - playerctl
+    # --- Dev tools ---
+    - go
+    - rust
+    - nodejs
+    - npm
+    - python
+    - python-pip
+    - docker
+    # --- Sway utilities ---
+    - wob
+    - wlogout
+    - swayr
+    - autotiling
+    - gammastep
+    - polkit-gnome
+    - gnome-keyring
+    - libsecret
+    # --- Misc ---
+    - xdg-desktop-portal
+    - xdg-desktop-portal-wlr
+    - xdg-user-dirs
+    - qt5ct
+    - qt6ct
+    - nwg-look
+    - papirus-icon-theme
+
+  aur_packages:
+    - yay
+    - zsh-antidote
+    - timeshift-autosnap
+
+  services:
+    system:
+      - acpid
+      - avahi-daemon
+      - bluetooth
+      - cronie
+      - NetworkManager
+      - sddm
+      - systemd-timesyncd
+      - grub-btrfsd
+      - tlp
+      - docker
+
+  aur_helper: yay
+
+desktop:
+  session: sway
+  display_manager: sddm
+  scale: 1.5
+  output: eDP-1
+  resolution: 2880x1800
+  refresh_rate: 120
+
+dotfiles:
+  manager: chezmoi
+  repo: "https://github.com/deceptikon/dotfiles.git"
+  branch: main
+
+security:
+  known_hashes: []             # <-- Populated by 01-inspect.sh / 02-generate-profile.sh
