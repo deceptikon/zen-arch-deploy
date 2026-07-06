@@ -1,0 +1,58 @@
+[0;34m[VM-TEST][0m Checking prerequisites...
+[0;32m[OK][0m All prerequisites found.
+[0;34m[VM-TEST][0m Using existing disk: /home/lexx/arch-deploy/vm-test/zenbook-test.img
+[0;32m[OK][0m Shared root: /home/lexx/arch-deploy (mounted at /mnt/arch-deploy inside VM)
+[0;32m[OK][0m UEFI NVRAM initialized.
+
+[0;34m[VM-TEST][0m ═══════════════════════════════════════════════════════════════
+[0;34m[VM-TEST][0m   Starting QEMU/KVM Virtual Machine
+[0;34m[VM-TEST][0m ═══════════════════════════════════════════════════════════════
+
+  Disk image:  /home/lexx/arch-deploy/vm-test/zenbook-test.img
+  ISO:         /home/lexx/arch-deploy/vm-test/archlinux.iso
+  Firmware:    UEFI (OVMF)
+  RAM:         4 GB
+  CPUs:        4 cores
+  Display:     SDL window
+
+[0;34m[VM-TEST][0m What you should see:
+  1. QEMU window opens with TianoCore UEFI splash
+  2. Arch ISO bootloader menu appears
+  3. You land in Arch live environment
+
+[0;34m[VM-TEST][0m Next steps inside the VM:
+  loadkeys us
+  dhcpcd                                        # or: iwctl station wlan0 connect YOUR_WIFI
+  mount -t 9p -o trans=virtio hostshare /mnt/arch-deploy
+  cd /mnt/arch-deploy
+  ./stages/01-inspect.sh                        # detect disk layout
+  ./stages/02-generate-profile.sh               # build profile from inspect data
+  cat profiles/my-machine.yaml                  # verify auto-detected values
+  ./arch-deploy.sh --profile profiles/my-machine.yaml prepare --dry-run
+  ./arch-deploy.sh --profile profiles/my-machine.yaml execute --dry-run
+  ./arch-deploy.sh --profile profiles/my-machine.yaml execute
+
+Directories inside VM:
+  /mnt/arch-deploy          ← the full project (code + profiles + test fixture)
+  /mnt/arch-deploy/profiles ← generated & reference profiles
+  /mnt/arch-deploy/test-inspect ← reusable fixture for debug
+
+[1;33m[WARN][0m Press Ctrl+A then X in the QEMU window to force-quit if needed.
+
+[0;34m[VM-TEST][0m Booting from ISO (press Esc in QEMU for boot menu if needed)
+c[?7l[2J[0mSeaBIOS (version Arch Linux 1.17.0-2-2)
+
+
+iPXE (http://ipxe.org) 00:03.0 C900 PCI2.10 PnP PMM+06FD4040+06F34040 C900
+Press Ctrl-B to configure iPXE (PCI 00:03.0)...                                                                               
+
+
+Booting from DVD/CD...
+
+ISOLINUX 6.04 6.04-pre3-3-g05ac953c* ETCD Copyright (C) 1994-2015 H. Peter Anvin
+ et al
+
+ISOLINUX 6.04 6.04-pre3-3-g05ac953c*  Copyright (C) 1994-2015 H. Peter Anvin et al
+e%@)0(B[0;37;40m[?25l[2J[11;5H[0;30;44mlqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk[12;5H[0;30;44mx[01;01H[0;1;36;44m                             Arch Linux                             [0;30;44mx[13;5H[0;30;44mtqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqu[14;5H[0;30;44mx[0;7;37;40m Arch Linux install medium (x86_64, BIOS)                           [0;30;44mx[15;5H[0;30;44mx[0;37;44m Arch Linux install medium (x86_64, BIOS) with [0;1;37;44ms[0;37;44mpeech               [0;30;44mx[16;5H[0;30;44mx[0;37;44m Boot existing OS                                                   [0;30;44mx[17;5H[0;30;44mx[0;37;44m Run Memtest86+ (RAM test)                                          [0;30;44mx[18;5H[0;30;44mx[0;37;44m Hardware Information (HDT)                                         [0;30;44mx[19;5H[0;30;44mx[0;37;44m Reboot                                                             [0;30;44mx[20;5H[0;30;44mx[0;37;44m Power Off                                                          [0;30;44mx[21;5H[0;30;44mmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj[0;31;40m[24;26HPress [Tab] to edit options[0;37;40m[28;1H[0;37;40m[26;1HBoot the Arch Linux install medium on BIOS.[K[27;1HIt allows you to install Arch Linux or perform system maintenance.[K[28;1H[K[K[29;1H[K[30;1H[30;24H[0;37;40mAutomatic boot in [0;1;37;40m15[0;37;40m seconds...[30;24H[0;37;40mAutomatic boot in [0;1;37;40m14[0;37;40m seconds...[30;24H[0;37;40mAutomatic boot in [0;1;37;40m13[0;37;40m seconds...[30;24H[0;37;40mAutomatic boot in [0;1;37;40m12[0;37;40m seconds...[30;24H[0;37;40mAutomatic boot in [0;1;37;40m11[0;37;40m seconds...[30;24H[0;37;40mAutomatic boot in [0;1;37;40m10[0;37;40m seconds...[30;24H[0;37;40m Automatic boot in [0;1;37;40m9[0;37;40m seconds... [30;25H[0;37;40mAutomatic boot in [0;1;37;40m8[0;37;40m seconds...[30;25H[0;37;40mAutomatic boot in [0;1;37;40m7[0;37;40m seconds...[30;25H[0;37;40mAutomatic boot in [0;1;37;40m6[0;37;40m seconds...[30;25H[0;37;40mAutomatic boot in [0;1;37;40m5[0;37;40m seconds...[30;25H[0;37;40mAutomatic boot in [0;1;37;40m4[0;37;40m seconds...[30;25H[0;37;40mAutomatic boot in [0;1;37;40m3[0;37;40m seconds...[30;25H[0;37;40mAutomatic boot in [0;1;37;40m2[0;37;40m seconds...[30;24H[0;37;40m Automatic boot in [0;1;37;40m1[0;37;40m second... [11;5H[0;30;44mlqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk[12;5H[0;30;44mx[0;1;36;44m                             Arch Linux                             [0;30;44mx[13;5H[0;30;44mtqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqu[14;5H[0;30;44mx[0;7;37;40m Arch Linux install medium (x86_64, BIOS)                           [0;30;44mx[15;5H[0;30;44mx[0;37;44m Arch Linux install medium (x86_64, BIOS) with [0;1;37;44ms[0;37;44mpeech               [0;30;44mx[16;5H[0;30;44mx[0;37;44m Boot existing OS                                                   [0;30;44mx[17;5H[0;30;44mx[0;37;44m Run Memtest86+ (RAM test)                                          [0;30;44mx[18;5H[0;30;44mx[0;37;44m Hardware Information (HDT)                                         [0;30;44mx[19;5H[0;30;44mx[0;37;44m Reboot                                                             [0;30;44mx[20;5H[0;30;44mx[0;37;44m Power Off                                                          [0;30;44mx[21;5H[0;30;44mmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj[0;31;40m[24;26HPress [Tab] to edit options[0;37;40m[28;1H[?25he%@)0(B[0;37;40m[?25l[2J[?25h[28;1H[0mLoading /arch/boot/x86_64/vmlinuz-linux... ok
+Loading /arch/boot/x86_64/initramfs-linux.img...failed: Bad file number
+e%@)0(B[0;37;40m[?25l[2J[11;5H[0;30;44mlqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk[12;5H[0;30;44mx[0;1;36;44m                             Arch Linux                             [0;30;44mx[13;5H[0;30;44mtqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqu[14;5H[0;30;44mx[0;7;37;40m Arch Linux install medium (x86_64, BIOS)                           [0;30;44mx[15;5H[0;30;44mx[0;37;44m Arch Linux install medium (x86_64, BIOS) with [0;1;37;44ms[0;37;44mpeech               [0;30;44mx[16;5H[0;30;44mx[0;37;44m Boot existing OS                                                   [0;30;44mx[17;5H[0;30;44mx[0;37;44m Run Memtest86+ (RAM test)                                          [0;30;44mx[18;5H[0;30;44mx[0;37;44m Hardware Information (HDT)                                         [0;30;44mx[19;5H[0;30;44mx[0;37;44m Reboot                                                             [0;30;44mx[20;5H[0;30;44mx[0;37;44m Power Off                                                          [0;30;44mx[21;5H[0;30;44mmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj[0;31;40m[24;26HPress [Tab] to edit options[0;37;40m[28;1H[0;37;40m[26;1HBoot the Arch Linux install medium on BIOS.[K[27;1HIt allows you to install Arch Linux or perform system maintenance.[K[28;1H[K[K[29;1H[K[30;1H[30;24H[0;37;40mAutomatic boot in [0;1;37;40m15[0;37;40m seconds...[30;24H[0;37;40mAutomatic boot in [0;1;37;40m14[0;37;40m seconds...[30;24H[0;37;40mAutomatic boot in [0;1;37;40m13[0;37;40m seconds...[30;24H[0;37;40mAutomatic boot in [0;1;37;40m12[0;37;40m seconds...[30;24H[0;37;40mAutomatic boot in [0;1;37;40m11[0;37;40m seconds...[30;24H[0;37;40mAutomatic boot in [0;1;37;40m10[0;37;40m seconds...[30;24H[0;37;40m Automatic boot in [0;1;37;40m9[0;37;40m seconds... [30;25H[0;37;40mAutomatic boot in [0;1;37;40m8[0;37;40m seconds...[30;25H[0;37;40mAutomatic boot in [0;1;37;40m7[0;37;40m seconds...[30;25H[0;37;40mAutomatic boot in [0;1;37;40m6[0;37;40m seconds...[30;25H[0;37;40mAutomatic boot in [0;1;37;40m5[0;37;40m seconds...[30;25H[0;37;40mAutomatic boot in [0;1;37;40m4[0;37;40m seconds...[30;25H[0;37;40mAutomatic boot in [0;1;37;40m3[0;37;40m seconds...qemu-system-x86_64: terminating on signal 15 from pid 1440849 (/usr/bin/zsh)

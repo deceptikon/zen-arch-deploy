@@ -1,0 +1,66 @@
+#!/usr/bin/expect -f
+set timeout 180
+
+spawn qemu-system-x86_64 \
+    -enable-kvm -m 4096 -smp 4 -cpu host \
+    -drive if=pflash,format=raw,readonly=on,file=/usr/share/edk2/x64/OVMF_CODE.4m.fd \
+    -drive if=pflash,format=raw,file=/home/lexx/arch-deploy/vm-test/OVMF_VARS.fd \
+    -drive if=virtio,format=raw,file=/home/lexx/arch-deploy/vm-test/zenbook-test.img \
+    -netdev user,id=net0,hostfwd=tcp::2222-:22 -device virtio-net-pci,netdev=net0 \
+    -usb -device usb-tablet \
+    -display sdl,gl=on \
+    -monitor unix:/tmp/qemu-monitor.sock,server,nowait \
+    -virtfs local,path=/home/lexx/arch-deploy,mount_tag=hostshare,security_model=none,multidevs=remap \
+    -cdrom /home/lexx/arch-deploy/vm-test/archlinux.iso -boot d \
+    -serial mon:stdio
+
+# Skip boot menu
+sleep 20
+send "\r"
+sleep 40
+
+# We should be at a shell now
+send "dhcpcd\r"
+sleep 5
+
+send "systemctl start sshd\r"
+sleep 2
+
+send "echo 'root:root' | chpasswd\r"
+sleep 1
+
+send "sed -i 's/^#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config\r"
+sleep 1
+
+send "systemctl restart sshd\r"
+sleep 2
+
+send_user "SSH ready\n"
+
+# Mount 9p
+send "mkdir -p /mnt/arch-deploy\r"
+sleep 1
+send "mount -t 9p -o trans=virtio hostshare /mnt/arch-deploy\r"
+sleep 2
+
+send_user "9p mounted, running GRUB fix\n"
+
+# Mount the installed system and fix GRUB
+send "mount /dev/vda5 /mnt -o subvol=@\r"
+sleep 1
+send "mount /dev/vda5 /mnt/home -o subvol=@home\r"
+sleep 1
+send "mount /dev/vda4 /mnt/efi\r"
+sleep 1
+
+# Fix GRUB with --removable
+send "arch-chroot /mnt grub-install --target=x86_64-efi --efi-directory=/efi --bootloader-id=ARCHLINUX --removable --recheck\r"
+sleep 5
+
+send_user "GRUB fixed\n"
+send_user "Ready for SSH\n"
+
+# Wait a bit then exit
+sleep 3
+send "poweroff\r"
+sleep 10

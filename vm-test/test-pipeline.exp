@@ -1,0 +1,38 @@
+#!/usr/bin/expect -f
+# vm-test/test-pipeline.exp — automate pipeline inside QEMU VM via SSH
+set timeout 600
+set host "localhost"
+set port 2222
+set user "root"
+set pass "root"
+
+spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p $port $user@$host
+
+expect "assword:"
+send "$pass\r"
+
+expect "# "
+send "mount -t 9p -o trans=virtio hostshare /mnt/arch-deploy\r"
+expect "# "
+send "cd /mnt/arch-deploy\r"
+
+expect "# "
+send "stages/01-inspect.sh\r"
+expect "# "
+send "stages/02-generate-profile.sh\r"
+expect "# "
+send "echo '=== GENERATED PROFILE ==='\r"
+expect "# "
+send "cat profiles/my-machine.yaml\r"
+
+expect "# "
+send "echo '=== VALIDATION ==='\r"
+expect "# "
+send "source lib/profile.sh && profile_load profiles/my-machine.yaml && profile_validate\r"
+
+expect "# "
+send "echo '=== DONE ==='\r"
+expect "# "
+send "poweroff\r"
+
+expect eof
