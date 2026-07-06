@@ -19,7 +19,7 @@ gpu:
 
 storage:
   disk: /dev/vda
-  wipe_strategy: format-full
+  wipe_strategy: subvol-reset
   purge_snapshots: true
   partitions:
     efi:
@@ -116,7 +116,6 @@ software:
     - swaybg
     - swayidle
     - swaylock
-    - wlroots
     - wayland
     - wayland-protocols
     - xorg-xwayland
@@ -180,10 +179,9 @@ software:
     - python
     - python-pip
     - docker
+    - acpid
     # --- Sway utilities ---
     - wob
-    - wlogout
-    - swayr
     - autotiling
     - gammastep
     - polkit-gnome
@@ -202,6 +200,8 @@ software:
     - yay
     - zsh-antidote
     - timeshift-autosnap
+    - wlogout
+    - swayr
 
   services:
     system:
@@ -217,6 +217,7 @@ software:
       - tlp
       - docker
 
+  user: lexx
   aur_helper: yay
 
 desktop:

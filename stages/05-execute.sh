@@ -90,7 +90,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
     _mv="PROFILE_storage__partitions__root_pool__subvolumes__${_si}__mount"
     subvol_names+=("$_n")
     subvol_mounts+=("${!_mv:-/}")
-    ((_si++))
+    _si=$((_si+1))
   done
   EFI_MPOINT=$(profile_get_or_die "storage.partitions.efi.mount")
 
@@ -184,7 +184,7 @@ while true; do
   pkg="${!pkg_var:-}"
   [[ -n "$pkg" ]] || break
   BASE_PKGS+=("$pkg")
-  ((i++))
+  i=$((i+1))
 done
 
 # Deduplicate
@@ -196,7 +196,7 @@ for p in "${BASE_PKGS[@]}"; do
   UNIQUE_PKGS+=("$p")
 done
 
-run pacstrap -K /mnt "${UNIQUE_PKGS[@]}"
+yes | run pacstrap -K /mnt "${UNIQUE_PKGS[@]}"
 log_ok "Pacstrap complete."
 
 # Enable services listed in profile (sshd, NetworkManager, etc.)
@@ -248,7 +248,7 @@ while true; do
   hook="${!hook_var:-}"
   [[ -n "$hook" ]] || break
   HOOKS_LINE+="$hook "
-  ((h++))
+  h=$((h+1))
 done
 HOOKS_LINE+=")"
 

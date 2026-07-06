@@ -168,10 +168,10 @@ inspect_validate() {
   for f in "${required_files[@]}"; do
     if [[ ! -f "$inspect_dir/$f" ]]; then
       log_err "Missing inspect output: $f"
-      ((issues++))
+      issues=$((issues+1))
     elif [[ ! -s "$inspect_dir/$f" ]]; then
       log_warn "Empty inspect output: $f"
-      ((issues++))
+      issues=$((issues+1))
     else
       log_ok "Found: $f ($(wc -l < "$inspect_dir/$f") lines)"
     fi
@@ -181,11 +181,11 @@ inspect_validate() {
   if [[ -f "$inspect_dir/storage.txt" ]]; then
     if ! grep -q "^=== BLKID ===" "$inspect_dir/storage.txt"; then
       log_err "storage.txt missing === BLKID === section — disk discovery will fail"
-      ((issues++))
+      issues=$((issues+1))
     fi
     if ! grep -q "^=== BLOCK DEVICES ===" "$inspect_dir/storage.txt"; then
       log_err "storage.txt missing === BLOCK DEVICES === section — topology discovery will fail"
-      ((issues++))
+      issues=$((issues+1))
     fi
   fi
 

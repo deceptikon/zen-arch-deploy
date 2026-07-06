@@ -20,7 +20,7 @@ install_base_packages() {
     local pkg="${!pkg_var:-}"
     [[ -n "$pkg" ]] || break
     echo "$pkg" >> "$pkglist"
-    ((i++))
+    i=$((i+1))
   done
 
   [[ -s "$pkglist" ]] || { log_warn "No base packages listed in profile."; return 0; }
@@ -68,7 +68,7 @@ install_aur_packages() {
     [[ -n "$pkg" ]] || break
     log_info "Installing AUR package: $pkg"
     run arch-chroot "$mnt" su - "$build_user" -c "yay -S --needed --noconfirm $pkg"
-    ((i++))
+     i=$((i+1))
   done
 
   # Cleanup build user
@@ -89,6 +89,6 @@ enable_services() {
     [[ -n "$svc" ]] || break
     log_info "Enabling service: $svc"
     run arch-chroot "$mnt" systemctl enable "$svc"
-    ((i++))
+     i=$((i+1))
   done
 }

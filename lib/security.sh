@@ -37,8 +37,8 @@ verify_hashes() {
     local fullpath="$mnt$path"
     if [[ ! -f "$fullpath" ]]; then
       log_warn "File missing: $fullpath"
-      ((failed++))
-      ((i++))
+      failed=$((failed+1))
+      i=$((i+1))
       continue
     fi
 
@@ -48,12 +48,12 @@ verify_hashes() {
       log_err "HASH MISMATCH: $path"
       log_err "  Expected: $expected"
       log_err "  Actual:   $actual"
-      ((failed++))
+      failed=$((failed+1))
     else
       log_ok "Hash OK: $path"
     fi
 
-    ((i++))
+    i=$((i+1))
   done
 
   return $failed

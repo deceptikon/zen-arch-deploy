@@ -70,15 +70,20 @@ if id "$USERNAME"; then
     log_info "Creating user: $USERNAME"
     run useradd -m -G wheel,audio,video,input,storage,power,docker -s /bin/zsh "$USERNAME"
     log_warn "Set password for $USERNAME:"
-    run passwd "$USERNAME"
+    echo "${USERNAME}:${USERNAME}" | run chpasswd
   fi
 
-# Sudoers
+# Sudoers for wheel group
 if [[ ! -f /etc/sudoers.d/99-wheel ]]; then
   echo "%wheel ALL=(ALL:ALL) ALL" > /etc/sudoers.d/99-wheel
   chmod 440 /etc/sudoers.d/99-wheel
   log_ok "Wheel sudoers configured."
 fi
+
+# User-specific sudoers: !requiretty + NOPASSWD (zzz prefix overrides wheel group entry)
+echo "Defaults:${USERNAME} !requiretty" > /etc/sudoers.d/99-zzz-${USERNAME}
+echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/99-zzz-${USERNAME}
+log_ok "User sudoers configured (!requiretty + NOPASSWD)."
 
 # ---------------------------------------------------------------------------
 # 2. Ensure base deps for building
@@ -90,8 +95,7 @@ run pacman -S --needed --noconfirm git base-devel
 # ---------------------------------------------------------------------------
 BUILD_USER="aurbuilder"
 
-local yay_path
-  yay_path=$(command -v yay)
+  yay_path=$(command -v yay || true)
   if [[ -z "$yay_path" ]]; then
   log_info "Installing yay (AUR helper)..."
 
@@ -99,8 +103,11 @@ local yay_path
     log_info "Build user $BUILD_USER already exists"
   else
     run useradd -m -G wheel "$BUILD_USER"
-    echo "$BUILD_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/99-${BUILD_USER}
   fi
+  # Ensure sudoers config (rewrite even if exists)
+  # Use zzz prefix so this sorts after 99-wheel to avoid group override
+  echo "Defaults:${BUILD_USER} !requiretty" > /etc/sudoers.d/99-zzz-${BUILD_USER}
+  echo "${BUILD_USER} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/99-zzz-${BUILD_USER}
 
   run su - "$BUILD_USER" -c "
     set -e
@@ -117,8 +124,8 @@ local yay_path
       log_warn "Failed to remove build user $BUILD_USER"
     fi
   fi
-  if [[ -f /etc/sudoers.d/99-${BUILD_USER} ]]; then
-    run rm -f /etc/sudoers.d/99-${BUILD_USER}
+  if [[ -f /etc/sudoers.d/99-zzz-${BUILD_USER} ]]; then
+    run rm -f /etc/sudoers.d/99-zzz-${BUILD_USER}
   fi
   log_ok "yay installed."
 else
@@ -136,7 +143,7 @@ while true; do
   [[ -n "$pkg" ]] || break
   log_info "Installing AUR package: $pkg"
   run su - "$USERNAME" -c "yay -S --needed --noconfirm $pkg"
-  ((i++))
+   i=$((i+1))
 done
 
 # ---------------------------------------------------------------------------
@@ -150,7 +157,7 @@ while true; do
   [[ -n "$svc" ]] || break
   log_info "Enabling service: $svc"
   run systemctl enable "$svc"
-  ((i++))
+   i=$((i+1))
 done
 
 # ---------------------------------------------------------------------------
@@ -163,8 +170,7 @@ if [[ -n "$DOTFILES_REPO" ]]; then
   log_info "Deploying dotfiles with $DOTFILES_MANAGER..."
 
   if [[ "$DOTFILES_MANAGER" == "chezmoi" ]]; then
-    local chezmoi_path
-    chezmoi_path=$(command -v chezmoi)
+    chezmoi_path=$(command -v chezmoi || true)
     if [[ -z "$chezmoi_path" ]]; then
       run pacman -S --needed --noconfirm chezmoi
     fi
@@ -215,7 +221,7 @@ log_ok "SDDM configured for Wayland."
 
 # Ensure user runtime dir
 run mkdir -p "/run/user/$(id -u "$USERNAME")"
-  local user_runtime_dir="/run/user/$(id -u "$USERNAME")"
+  user_runtime_dir="/run/user/$(id -u "$USERNAME")"
   if [[ -d "$user_runtime_dir" ]]; then
     run chown "$USERNAME:$USERNAME" "$user_runtime_dir" || log_warn "Failed to chown $user_runtime_dir"
   else
@@ -225,8 +231,7 @@ run mkdir -p "/run/user/$(id -u "$USERNAME")"
 # ---------------------------------------------------------------------------
 # 9. Final pacman hooks for timeshift snapshots on upgrade
 # ---------------------------------------------------------------------------
-local tsnap_path
-  tsnap_path=$(command -v timeshift-autosnap)
+tsnap_path=$(command -v timeshift-autosnap || true)
   if [[ -n "$tsnap_path" ]]; then
   log_info "timeshift-autosnap is installed. It will create snapshots before upgrades."
 fi

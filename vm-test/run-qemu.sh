@@ -306,9 +306,19 @@ QEMU_ARGS=(
   -virtfs local,path=${PROJECT_ROOT},mount_tag=hostshare,security_model=none,multidevs=remap
 )
 
-# Headless fallback: use -display none + serial console for non-sandboxed agents
+# Headless fallback: replace display with serial console, keep everything else
 if [[ "${QEMU_HEADLESS:-}" == "true" ]]; then
-  QEMU_ARGS=(-display none -nographic -serial mon:stdio)
+  # Remove SDL display args, add serial console
+  NEW_ARGS=()
+  for arg in "${QEMU_ARGS[@]}"; do
+    [[ "$arg" == "-display" ]] && continue
+    [[ "$arg" == "sdl,gl=on" ]] && continue
+    [[ "$arg" == "-vga" ]] && continue
+    [[ "$arg" == "virtio" ]] && continue
+    NEW_ARGS+=("$arg")
+  done
+  QEMU_ARGS=("${NEW_ARGS[@]}")
+  QEMU_ARGS+=(-display none -nographic -serial mon:stdio)
 fi
 
 if [[ -f "$ISO" ]]; then

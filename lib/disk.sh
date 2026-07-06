@@ -56,7 +56,7 @@ mount_subvols() {
     run mkdir -p "$target"
     run mount -o "$opts" "$root_dev" "$target"
 
-    ((i++))
+    i=$((i+1))
   done
 
   # Mount EFI
@@ -123,7 +123,7 @@ generate_fstab() {
     local pad
     pad=$(printf '%*s' $((45 - ${#mpoint})) '')
     fstab_body+="UUID=${root_uuid}  ${mpoint:-/}${pad}btrfs  ${opts}  0 0"$'\n'
-    ((i++))
+    i=$((i+1))
   done
 
   fstab_body+=$'\n'"# EFI partition"$'\n'
