@@ -230,7 +230,7 @@ desktop:
 
 dotfiles:
   manager: chezmoi
-  repo: "https://github.com/deceptikon/dotfiles.git"
+  repo: "git@github.com:deceptikon/zen-arch.git"
   branch: main
 
 security:
