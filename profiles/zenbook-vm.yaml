@@ -210,6 +210,7 @@ software:
       - bluetooth
       - cronie
       - NetworkManager
+      - sshd
       - sddm
       - systemd-timesyncd
       - grub-btrfsd

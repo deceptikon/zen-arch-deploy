@@ -19,6 +19,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/profile.sh"
 source "$SCRIPT_DIR/lib/disk.sh"
 source "$SCRIPT_DIR/lib/btrfs.sh"
+source "$SCRIPT_DIR/lib/pkg.sh"
 
 # Parse args
 while [[ $# -gt 0 ]]; do
@@ -198,6 +199,10 @@ done
 run pacstrap -K /mnt "${UNIQUE_PKGS[@]}"
 log_ok "Pacstrap complete."
 
+# Enable services listed in profile (sshd, NetworkManager, etc.)
+log_info "Enabling system services..."
+enable_services /mnt
+
 # ---------------------------------------------------------------------------
 # 4. Generate fstab
 # ---------------------------------------------------------------------------
@@ -282,8 +287,9 @@ log_ok "GRUB installed."
 # ---------------------------------------------------------------------------
 # 8. Root password
 # ---------------------------------------------------------------------------
-log_warn "Please set a root password for the new system."
-run arch-chroot /mnt passwd
+log_info "Setting root password..."
+run arch-chroot /mnt /bin/bash -c 'echo "root:root" | chpasswd'
+log_warn "Root password set to 'root' — change it after first login!"
 
 log_ok "Stage 05 EXECUTE complete."
 log_info "You may now reboot, or proceed to CONFIGURE stage after first boot."

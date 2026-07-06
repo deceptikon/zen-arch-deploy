@@ -299,6 +299,8 @@ QEMU_ARGS=(
   -usb -device usb-tablet
   -vga virtio
   -display sdl,gl=on
+  # QEMU monitor socket for remote control
+  -monitor unix:/tmp/qemu-monitor.sock,server,nowait
   # 9p VirtFS — share whole arch-deploy project root
   # Inside VM: mount -t 9p -o trans=virtio hostshare /mnt/arch-deploy
   -virtfs local,path=${PROJECT_ROOT},mount_tag=hostshare,security_model=none,multidevs=remap
