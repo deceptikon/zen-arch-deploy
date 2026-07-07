@@ -214,26 +214,30 @@ if [[ -n "$DOTFILES_REPO" ]]; then
       # template (which contains waybar_output, scale_factor, etc.) is ONLY processed
       # during `chezmoi init`. Running `apply` on a fresh system leaves all .tmpl
       # files rendered with empty template data, producing broken or empty configs.
-      #
-      # Also: make source world-readable so the new user (running via su) can access
-      # it. Files like zsh/history may be 600 (owner-only) and silently block chezmoi.
-      log_info "  Making bundled source readable by new user..."
-      run chmod -R o+rX "$BUNDLED_DOTFILES_DIR"
-      #
+      # Also: if the deploy repo was cloned into a restricted directory (like another
+      # user's home folder /home/lxx with mode 700), the new user cannot traverse
+      # the path to read the dotfiles. To guarantee access, we copy the dotfiles
+      # to /tmp first.
+      TMP_DOTFILES="/tmp/arch-deploy-dotfiles"
+      log_info "  Staging bundled source in $TMP_DOTFILES to guarantee read access..."
+      run rm -rf "$TMP_DOTFILES"
+      run cp -a "$BUNDLED_DOTFILES_DIR" "$TMP_DOTFILES"
+      run chmod -R o+rX "$TMP_DOTFILES"
+      
       # Also: the bundled dotfiles dir lives inside a git repo owned by a different
       # user (or root). Git's "dubious ownership" check blocks all git operations,
       # which causes chezmoi to silently exit 0 and deploy nothing. Register both
       # the dotfiles dir and its parent as safe directories for the target user.
       log_info "  Registering safe.directory for git (dubious ownership guard)..."
       run su - "$USERNAME" -c "
-        git config --global --add safe.directory '$BUNDLED_DOTFILES_DIR'
-        git config --global --add safe.directory '$(dirname "$BUNDLED_DOTFILES_DIR")'
+        git config --global --add safe.directory '$TMP_DOTFILES'
       "
-      log_info "  Running: chezmoi init --apply --source $BUNDLED_DOTFILES_DIR"
+      log_info "  Running: chezmoi init --apply --source $TMP_DOTFILES"
       run su - "$USERNAME" -c "
         set -e
-        chezmoi init --apply --force --source '$BUNDLED_DOTFILES_DIR'
+        chezmoi init --apply --force --source '$TMP_DOTFILES'
       "
+      run rm -rf "$TMP_DOTFILES"
     else
       log_info "Initialising chezmoi from remote repo: $DOTFILES_REPO ..."
       run su - "$USERNAME" -c "
