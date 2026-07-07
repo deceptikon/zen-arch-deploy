@@ -179,6 +179,13 @@ BUNDLED_DOTFILES_DIR="$ARCH_DEPLOY_ROOT/dotfiles"
 
 if [[ -z "$DOTFILES_REPO" ]]; then
   if [[ -d "$BUNDLED_DOTFILES_DIR" ]]; then
+    # Check the submodule is actually populated — a bare `git clone` without
+    # --recurse-submodules leaves dotfiles/ as an empty directory.
+    if [[ ! -f "$BUNDLED_DOTFILES_DIR/.chezmoi.toml.tmpl" ]]; then
+      log_warn "  dotfiles/ dir exists but appears empty (submodule not initialized)."
+      log_info "  Running: git submodule update --init -- dotfiles"
+      run git -C "$ARCH_DEPLOY_ROOT" submodule update --init -- dotfiles
+    fi
     log_info "No external dotfiles.repo configured in profile."
     log_info "  → Falling back to BUNDLED dotfiles: $BUNDLED_DOTFILES_DIR"
     DOTFILES_REPO="bundled"
@@ -210,6 +217,16 @@ if [[ -n "$DOTFILES_REPO" ]]; then
       # it. Files like zsh/history may be 600 (owner-only) and silently block chezmoi.
       log_info "  Making bundled source readable by new user..."
       run chmod -R o+rX "$BUNDLED_DOTFILES_DIR"
+      #
+      # Also: the bundled dotfiles dir lives inside a git repo owned by a different
+      # user (or root). Git's "dubious ownership" check blocks all git operations,
+      # which causes chezmoi to silently exit 0 and deploy nothing. Register both
+      # the dotfiles dir and its parent as safe directories for the target user.
+      log_info "  Registering safe.directory for git (dubious ownership guard)..."
+      run su - "$USERNAME" -c "
+        git config --global --add safe.directory '$BUNDLED_DOTFILES_DIR'
+        git config --global --add safe.directory '$(dirname "$BUNDLED_DOTFILES_DIR")'
+      "
       log_info "  Running: chezmoi init --apply --source $BUNDLED_DOTFILES_DIR"
       run su - "$USERNAME" -c "
         set -e
