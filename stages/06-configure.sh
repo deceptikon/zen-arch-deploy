@@ -183,6 +183,8 @@ if [[ -z "$DOTFILES_REPO" ]]; then
     # --recurse-submodules leaves dotfiles/ as an empty directory.
     if [[ ! -f "$BUNDLED_DOTFILES_DIR/.chezmoi.toml.tmpl" ]]; then
       log_warn "  dotfiles/ dir exists but appears empty (submodule not initialized)."
+      log_info "  Registering safe.directory for root (dubious ownership guard)..."
+      run git config --global --add safe.directory "$ARCH_DEPLOY_ROOT"
       log_info "  Running: git submodule update --init -- dotfiles"
       run git -C "$ARCH_DEPLOY_ROOT" submodule update --init -- dotfiles
     fi
