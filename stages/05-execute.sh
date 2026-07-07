@@ -291,5 +291,13 @@ log_info "Setting root password..."
 run arch-chroot /mnt /bin/bash -c 'echo "root:root" | chpasswd'
 log_warn "Root password set to 'root' — change it after first login!"
 
+# ---------------------------------------------------------------------------
+# 9. Copy arch-deploy to new system
+# ---------------------------------------------------------------------------
+log_info "Copying arch-deploy directory to new system (/root/arch-deploy)..."
+run mkdir -p /mnt/root
+run cp -a "$ARCH_DEPLOY_ROOT" /mnt/root/arch-deploy
+log_ok "arch-deploy copied to new system. You can resume from /root/arch-deploy after reboot."
+
 log_ok "Stage 05 EXECUTE complete."
 log_info "You may now reboot, or proceed to CONFIGURE stage after first boot."

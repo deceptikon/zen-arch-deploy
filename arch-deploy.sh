@@ -65,6 +65,24 @@ STAGE="${1:-}"
 
 [[ -z "$STAGE" ]] && { usage; exit 1; }
 
+# Auto-detect profile if not specified and exactly one non-example profile exists
+if [[ -z "$PROFILE" ]]; then
+  shopt -s nullglob
+  local_profiles=("$SCRIPT_DIR"/profiles/*.yaml)
+  shopt -u nullglob
+  
+  # Filter out example profiles
+  valid_profiles=()
+  for p in "${local_profiles[@]}"; do
+    [[ "$(basename "$p")" != "example.yaml" && "$(basename "$p")" != "zenbook-vm.yaml" ]] && valid_profiles+=("$p")
+  done
+
+  if [[ ${#valid_profiles[@]} -eq 1 ]]; then
+    PROFILE="${valid_profiles[0]}"
+    log_info "Auto-detected profile: $PROFILE"
+  fi
+fi
+
 # ---------------------------------------------------------------------------
 # Resolve stage script
 # ---------------------------------------------------------------------------
