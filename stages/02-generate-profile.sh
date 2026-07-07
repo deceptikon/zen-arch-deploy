@@ -15,7 +15,7 @@ set -uo pipefail
 SCRIPT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/profile.sh"
-set -uo pipefail  # restore after profile.sh re-sources common.sh (which sets -e)
+set +e  # restore NO set -e after common.sh sets it
 
 INSPECT_DIR="${1:-./inspect-out}"
 OUT_DIR="./profiles"

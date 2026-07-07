@@ -33,6 +33,7 @@ set -uo pipefail
 SCRIPT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/profile.sh"
+set +e  # restore NO set -e after common.sh sets it
 
 OUTPUT_DIR="${1:-./inspect-out}"
 [[ "$OUTPUT_DIR" == --output ]] && OUTPUT_DIR="${2:-./inspect-out}"
