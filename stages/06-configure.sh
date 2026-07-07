@@ -178,7 +178,7 @@ if [[ -n "$DOTFILES_REPO" ]]; then
 
     run su - "$USERNAME" -c "
       set -e
-      chezmoi init --apply '$DOTFILES_REPO'
+      chezmoi init --apply --force '$DOTFILES_REPO'
     "
     log_ok "Dotfiles deployed via chezmoi."
   else
