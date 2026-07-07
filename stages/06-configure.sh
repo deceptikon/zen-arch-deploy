@@ -167,6 +167,16 @@ done
 DOTFILES_REPO="$(profile_get "dotfiles.repo")"
 DOTFILES_MANAGER="$(profile_get "dotfiles.manager")"
 
+if [[ -z "$DOTFILES_REPO" ]]; then
+  if [[ -d "$ARCH_DEPLOY_ROOT/dotfiles" ]]; then
+    log_info "No dotfiles.repo configured. Using bundled dotfiles from $ARCH_DEPLOY_ROOT/dotfiles."
+    run su - "$USERNAME" -c "mkdir -p ~/.local/share/chezmoi"
+    run cp -a "$ARCH_DEPLOY_ROOT/dotfiles/." "/home/$USERNAME/.local/share/chezmoi/"
+    run chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/.local/share/chezmoi"
+    DOTFILES_REPO="bundled"
+  fi
+fi
+
 if [[ -n "$DOTFILES_REPO" ]]; then
   log_info "Deploying dotfiles with $DOTFILES_MANAGER..."
 
@@ -176,16 +186,23 @@ if [[ -n "$DOTFILES_REPO" ]]; then
       run pacman -S --needed --noconfirm --overwrite '*' chezmoi
     fi
 
-    run su - "$USERNAME" -c "
-      set -e
-      chezmoi init --apply --force '$DOTFILES_REPO'
-    "
+    if [[ "$DOTFILES_REPO" == "bundled" ]]; then
+      run su - "$USERNAME" -c "
+        set -e
+        chezmoi apply --force
+      "
+    else
+      run su - "$USERNAME" -c "
+        set -e
+        chezmoi init --apply --force '$DOTFILES_REPO'
+      "
+    fi
     log_ok "Dotfiles deployed via chezmoi."
   else
     log_warn "Unsupported dotfiles manager: $DOTFILES_MANAGER. Skipping."
   fi
 else
-  log_warn "No dotfiles.repo configured in profile. Skipping dotfile deployment."
+  log_warn "No dotfiles.repo configured in profile and no bundled dotfiles found. Skipping."
   log_warn "Edit your profile and set dotfiles.repo before re-running."
 fi
 
