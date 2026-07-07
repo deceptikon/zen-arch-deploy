@@ -19,6 +19,9 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/profile.sh"
+# Ensure ARCH_DEPLOY_ROOT is set even when this stage runs standalone (not via arch-deploy.sh)
+ARCH_DEPLOY_ROOT="${ARCH_DEPLOY_ROOT:-$SCRIPT_DIR}"
+export ARCH_DEPLOY_ROOT
 PROFILE=""
 
 # Parse args
@@ -62,10 +65,13 @@ log_info "╚══════════════════════�
 # ---------------------------------------------------------------------------
 USERNAME="$(profile_get "software.user")"
 if [[ -z "$USERNAME" ]]; then
-  read -rp "Enter username for primary account: " USERNAME
+  if [[ -t 0 ]]; then
+    read -rp "Enter username for primary account: " USERNAME
+  fi
+  [[ -n "$USERNAME" ]] || die "Profile key 'software.user' is not set and no username was provided interactively. Add 'user: <name>' under the 'software:' section in your profile YAML."
 fi
 
-if id "$USERNAME"; then
+if id "$USERNAME" &>/dev/null; then
     log_info "User $USERNAME already exists."
   else
     log_info "Creating user: $USERNAME"
@@ -166,14 +172,21 @@ done
 # ---------------------------------------------------------------------------
 DOTFILES_REPO="$(profile_get "dotfiles.repo")"
 DOTFILES_MANAGER="$(profile_get "dotfiles.manager")"
+# Default manager to chezmoi if not explicitly set in profile
+[[ -n "$DOTFILES_MANAGER" ]] || DOTFILES_MANAGER="chezmoi"
 
 if [[ -z "$DOTFILES_REPO" ]]; then
   if [[ -d "$ARCH_DEPLOY_ROOT/dotfiles" ]]; then
-    log_info "No dotfiles.repo configured. Using bundled dotfiles from $ARCH_DEPLOY_ROOT/dotfiles."
+    log_info "No external dotfiles.repo configured in profile."
+    log_info "  → Falling back to BUNDLED dotfiles: $ARCH_DEPLOY_ROOT/dotfiles"
     run su - "$USERNAME" -c "mkdir -p ~/.local/share/chezmoi"
     run cp -a "$ARCH_DEPLOY_ROOT/dotfiles/." "/home/$USERNAME/.local/share/chezmoi/"
     run chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/.local/share/chezmoi"
     DOTFILES_REPO="bundled"
+  else
+    log_warn "No external dotfiles.repo configured AND no bundled dotfiles found at $ARCH_DEPLOY_ROOT/dotfiles."
+    log_warn "  → Dotfiles installation SKIPPED."
+    log_warn "  → To fix: either set 'dotfiles.repo: <url>' in your profile, or ensure the dotfiles/ directory exists in the deploy repo."
   fi
 fi
 
@@ -183,15 +196,18 @@ if [[ -n "$DOTFILES_REPO" ]]; then
   if [[ "$DOTFILES_MANAGER" == "chezmoi" ]]; then
     chezmoi_path=$(command -v chezmoi || true)
     if [[ -z "$chezmoi_path" ]]; then
+      log_info "chezmoi not found — installing via pacman..."
       run pacman -S --needed --noconfirm --overwrite '*' chezmoi
     fi
 
     if [[ "$DOTFILES_REPO" == "bundled" ]]; then
+      log_info "Applying bundled dotfiles via chezmoi (source: ~/.local/share/chezmoi)..."
       run su - "$USERNAME" -c "
         set -e
         chezmoi apply --force
       "
     else
+      log_info "Initialising chezmoi from remote repo: $DOTFILES_REPO ..."
       run su - "$USERNAME" -c "
         set -e
         chezmoi init --apply --force '$DOTFILES_REPO'
@@ -199,11 +215,8 @@ if [[ -n "$DOTFILES_REPO" ]]; then
     fi
     log_ok "Dotfiles deployed via chezmoi."
   else
-    log_warn "Unsupported dotfiles manager: $DOTFILES_MANAGER. Skipping."
+    log_warn "Unsupported dotfiles manager: '$DOTFILES_MANAGER'. Only 'chezmoi' is currently supported. Skipping dotfiles."
   fi
-else
-  log_warn "No dotfiles.repo configured in profile and no bundled dotfiles found. Skipping."
-  log_warn "Edit your profile and set dotfiles.repo before re-running."
 fi
 
 # ---------------------------------------------------------------------------
