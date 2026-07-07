@@ -205,6 +205,11 @@ if [[ -n "$DOTFILES_REPO" ]]; then
       # template (which contains waybar_output, scale_factor, etc.) is ONLY processed
       # during `chezmoi init`. Running `apply` on a fresh system leaves all .tmpl
       # files rendered with empty template data, producing broken or empty configs.
+      #
+      # Also: make source world-readable so the new user (running via su) can access
+      # it. Files like zsh/history may be 600 (owner-only) and silently block chezmoi.
+      log_info "  Making bundled source readable by new user..."
+      run chmod -R o+rX "$BUNDLED_DOTFILES_DIR"
       log_info "  Running: chezmoi init --apply --source $BUNDLED_DOTFILES_DIR"
       run su - "$USERNAME" -c "
         set -e
@@ -217,7 +222,17 @@ if [[ -n "$DOTFILES_REPO" ]]; then
         chezmoi init --apply --force '$DOTFILES_REPO'
       "
     fi
-    log_ok "Dotfiles deployed via chezmoi."
+
+    # Sanity check: chezmoi has a known quirk where it exits 0 even on internal
+    # errors (e.g. git/permission failures). Verify deployment actually happened.
+    if [[ "${DRY_RUN:-false}" != "true" ]]; then
+      if [[ ! -f "/home/$USERNAME/.config/chezmoi/chezmoi.toml" ]]; then
+        die "Dotfiles deployment FAILED: ~/.config/chezmoi/chezmoi.toml not found after chezmoi init. Check stderr output above for the real error (chezmoi exits 0 even on failure)."
+      fi
+      log_ok "Dotfiles deployed via chezmoi (config file verified)."
+    else
+      log_ok "Dotfiles deployed via chezmoi."
+    fi
   else
     log_warn "Unsupported dotfiles manager: '$DOTFILES_MANAGER'. Only 'chezmoi' is currently supported. Skipping dotfiles."
   fi

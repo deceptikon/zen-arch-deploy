@@ -40,3 +40,13 @@
 - Any `>/dev/null` in .sh files → immediate revert
 - Any `|| true` → same
 - Explicit checks only: `[[ -f ]]`, `[[ -n "$(command -v x)" ]]`, `local x; if x=$(cmd); then ...`
+
+## TODO: Curate dotfiles/.chezmoiignore
+Decide what should NOT be deployed to a fresh machine via chezmoi.
+Candidates to exclude (needs deliberate decision, not done blindly):
+- `dot_config/zsh/history` — personal shell history, massive & machine-specific. Currently deploying to preserve it on reformat. Reconsider after first successful reformat.
+- `dot_config/zsh/.zcompdump` — zsh completion cache, always regenerated on first zsh start. Safe to exclude.
+- `dot_config/waybar/feeds/` — runtime JSON state files, written by daemons. `run_once_00-setup-waybar-runtime.sh` already creates empty placeholders. Excluding would save space but empty files are fine too.
+- `dot_config/waybar/logs/` — runtime log files, definitely exclude eventually.
+- `dot_config/waybar/docs/`, `**/AGENTS.md`, `**/.qwen/` — dev/AI workspace files, not part of user config.
+Note: `chmod -R o+rX` in `06-configure.sh` prevents permission errors during chezmoi init so 600-mode files (like history) no longer block deployment.
