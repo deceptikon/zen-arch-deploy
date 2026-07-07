@@ -17,6 +17,7 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/profile.sh"
+PROFILE=""
 source "$SCRIPT_DIR/lib/disk.sh"
 source "$SCRIPT_DIR/lib/btrfs.sh"
 source "$SCRIPT_DIR/lib/pkg.sh"
@@ -37,9 +38,9 @@ EOF
 done
 
 # Fall back to env var set by orchestrator
-[[ -z "$PROFILE" && -n "${ARCH_DEPLOY_PROFILE:-}" ]] && PROFILE="$ARCH_DEPLOY_PROFILE"
+[[ -z "${PROFILE:-}" && -n "${ARCH_DEPLOY_PROFILE:-}" ]] && PROFILE="$ARCH_DEPLOY_PROFILE"
 
-[[ -n "$PROFILE" ]] || die "--profile is required"
+[[ -n "${PROFILE:-}" ]] || die "--profile is required"
 profile_load "$PROFILE"
 profile_validate
 
