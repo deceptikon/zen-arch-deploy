@@ -175,16 +175,15 @@ DOTFILES_MANAGER="$(profile_get "dotfiles.manager")"
 # Default manager to chezmoi if not explicitly set in profile
 [[ -n "$DOTFILES_MANAGER" ]] || DOTFILES_MANAGER="chezmoi"
 
+BUNDLED_DOTFILES_DIR="$ARCH_DEPLOY_ROOT/dotfiles"
+
 if [[ -z "$DOTFILES_REPO" ]]; then
-  if [[ -d "$ARCH_DEPLOY_ROOT/dotfiles" ]]; then
+  if [[ -d "$BUNDLED_DOTFILES_DIR" ]]; then
     log_info "No external dotfiles.repo configured in profile."
-    log_info "  → Falling back to BUNDLED dotfiles: $ARCH_DEPLOY_ROOT/dotfiles"
-    run su - "$USERNAME" -c "mkdir -p ~/.local/share/chezmoi"
-    run cp -a "$ARCH_DEPLOY_ROOT/dotfiles/." "/home/$USERNAME/.local/share/chezmoi/"
-    run chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/.local/share/chezmoi"
+    log_info "  → Falling back to BUNDLED dotfiles: $BUNDLED_DOTFILES_DIR"
     DOTFILES_REPO="bundled"
   else
-    log_warn "No external dotfiles.repo configured AND no bundled dotfiles found at $ARCH_DEPLOY_ROOT/dotfiles."
+    log_warn "No external dotfiles.repo configured AND no bundled dotfiles found at $BUNDLED_DOTFILES_DIR."
     log_warn "  → Dotfiles installation SKIPPED."
     log_warn "  → To fix: either set 'dotfiles.repo: <url>' in your profile, or ensure the dotfiles/ directory exists in the deploy repo."
   fi
@@ -201,10 +200,15 @@ if [[ -n "$DOTFILES_REPO" ]]; then
     fi
 
     if [[ "$DOTFILES_REPO" == "bundled" ]]; then
-      log_info "Applying bundled dotfiles via chezmoi (source: ~/.local/share/chezmoi)..."
+      # IMPORTANT: we must use `chezmoi init --apply --source` (NOT `chezmoi apply`)
+      # because `chezmoi apply` skips processing `.chezmoi.toml.tmpl` — the config
+      # template (which contains waybar_output, scale_factor, etc.) is ONLY processed
+      # during `chezmoi init`. Running `apply` on a fresh system leaves all .tmpl
+      # files rendered with empty template data, producing broken or empty configs.
+      log_info "  Running: chezmoi init --apply --source $BUNDLED_DOTFILES_DIR"
       run su - "$USERNAME" -c "
         set -e
-        chezmoi apply --force
+        chezmoi init --apply --force --source '$BUNDLED_DOTFILES_DIR'
       "
     else
       log_info "Initialising chezmoi from remote repo: $DOTFILES_REPO ..."
