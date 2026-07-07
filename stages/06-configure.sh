@@ -89,7 +89,7 @@ log_ok "User sudoers configured (!requiretty + NOPASSWD)."
 # ---------------------------------------------------------------------------
 # 2. Ensure base deps for building
 # ---------------------------------------------------------------------------
-run pacman -S --needed --noconfirm git base-devel
+run pacman -S --needed --noconfirm --overwrite '*' git base-devel
 
 # ---------------------------------------------------------------------------
 # 3. Install AUR helper (yay) as build user
@@ -143,7 +143,7 @@ while true; do
   pkg="${!pkg_var:-}"
   [[ -n "$pkg" ]] || break
   log_info "Installing AUR package: $pkg"
-  run su - "$USERNAME" -c "yay -S --needed --noconfirm $pkg"
+  run su - "$USERNAME" -c "yay -S --needed --noconfirm --overwrite '*' $pkg"
    i=$((i+1))
 done
 
@@ -173,7 +173,7 @@ if [[ -n "$DOTFILES_REPO" ]]; then
   if [[ "$DOTFILES_MANAGER" == "chezmoi" ]]; then
     chezmoi_path=$(command -v chezmoi || true)
     if [[ -z "$chezmoi_path" ]]; then
-      run pacman -S --needed --noconfirm chezmoi
+      run pacman -S --needed --noconfirm --overwrite '*' chezmoi
     fi
 
     run su - "$USERNAME" -c "
